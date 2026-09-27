@@ -5,6 +5,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Upgraded `vite` (`5.4.5` → `^6.4.3`) and `@vitejs/plugin-react` (`^4.3.1` → `^4.7.0`) to
+  resolve four Dependabot alerts: a Windows `server.fs.deny` bypass and a path-traversal
+  issue in Vite's optimized-deps `.map` handling, an NTLMv2 hash disclosure via UNC path
+  handling in `launch-editor` (no longer pulled in as a dependency), and a dev-server CORS
+  issue in the bundled `esbuild` (now `0.25.x`, fixed upstream in `>=0.25.0`). All are
+  dev-server-only issues (no production runtime impact); `npm audit` now reports zero
+  vulnerabilities.
+
 ### Added
 - Initial local-first AI assistant: FastAPI backend + React/Vite/Tailwind frontend.
 - Dual-model routing to local `llama-server` instances (main + agent models).
