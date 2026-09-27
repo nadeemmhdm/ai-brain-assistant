@@ -14,7 +14,7 @@ from app.config import settings
 from app.db import init_db
 from app.routers import chat, learn_router, brain_router, settings_router, models_router, mcp_router
 
-app = FastAPI(title="AI Brain - Local Assistant", version="0.1.0")
+app = FastAPI(title="AI Brain - Local Assistant", version="0.1.0-beta.1")
 
 app.add_middleware(
     CORSMiddleware,
