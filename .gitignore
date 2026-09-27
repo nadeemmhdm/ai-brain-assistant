@@ -1,0 +1,22 @@
+# --- Python / backend ---
+backend/.venv/
+backend/**/__pycache__/
+*.pyc
+backend/data/*.db
+backend/data/*.db-journal
+!backend/data/.gitkeep
+.env
+
+# --- Node / frontend ---
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+npm-debug.log*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

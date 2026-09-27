@@ -1,0 +1,15 @@
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.30,<0.31
+httpx>=0.27,<0.28
+pydantic>=2.9,<3
+duckduckgo-search>=6.3,<7
+trafilatura>=1.12,<2
+beautifulsoup4>=4.12,<5
+numpy>=1.24
+python-dotenv>=1.0,<2
+
+# Optional (not installed by default -- it pulls in torch, ~1-2GB):
+# enables real local sentence embeddings for the AI Brain instead of the
+# built-in hashed-vector fallback. Uncomment and re-run pip install if you
+# want better retrieval quality:
+# sentence-transformers>=3.0
