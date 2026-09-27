@@ -16,4 +16,4 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - Dark/light themes and a settings panel.
 - Honest `Experimental` placeholders for MCP connectors and file attachments; LoRA/QLoRA training deferred entirely.
 
-[Unreleased]: https://github.com/OWNER/REPO/compare/main...HEAD
+[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/main...HEAD
