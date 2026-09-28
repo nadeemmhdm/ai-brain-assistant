@@ -7,6 +7,17 @@ so breaking changes may still happen between minor versions).
 
 ## [Unreleased]
 
+## [0.2.0-beta.1] - 2026-09-28
+
+### Added
+- Motion-based animations throughout (message entrance, modals, nav pill, toasts, progress bars, lock screen).
+- Icon nav rail with new **AI Brain** dashboard (stats, search, topic filter, delete, learning history) and **Training** view.
+- Dataset generation from verified knowledge, per-example approve/reject, JSONL export.
+- Real LoRA fine-tuning job runner (lazy-imported torch/peft; optional `requirements-training.txt`) with live progress; clear notes that GGUF cannot be trained and conversion is a manual llama.cpp step.
+- Optional passphrase app-lock protecting chats, AI Brain, datasets and training APIs (PBKDF2 + session tokens).
+- One-command launcher: `python scripts/run_dev.py`, `run.sh`, `run.bat`.
+- Toast notifications.
+
 ## [0.1.0-beta.1] - 2026-09-27
 
 First public beta. Functional local-first AI assistant with a working
@@ -36,5 +47,6 @@ roadmap" section for what's fully implemented versus marked Experimental.
   dev-server-only issues (no production runtime impact); `npm audit` now reports zero
   vulnerabilities.
 
-[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.1.0-beta.1...v0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/releases/tag/v0.1.0-beta.1

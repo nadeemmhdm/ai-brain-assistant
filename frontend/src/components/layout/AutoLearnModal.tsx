@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { X, GraduationCap, Pause, Play, Ban } from "lucide-react";
+import { GraduationCap, Pause, Play, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/Modal";
 import { api } from "@/lib/api";
 
 export function AutoLearnModal({ onClose }: { onClose: () => void }) {
@@ -28,16 +29,9 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-surface border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <GraduationCap className="h-4 w-4 text-accent" /> Auto Learn
-          </h2>
-          <button onClick={onClose} className="text-muted hover:text-ink"><X className="h-4 w-4" /></button>
-        </div>
-
+    <Modal open onClose={onClose} title="Auto Learn" maxWidth="max-w-md"
+      icon={<GraduationCap className="h-4 w-4 text-accent" />}>
+      <div>
         {!sessionId ? (
           <>
             <p className="text-xs text-muted mb-3">
@@ -87,7 +81,7 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
 

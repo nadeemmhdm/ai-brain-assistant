@@ -42,6 +42,9 @@ explicit, user-initiated action, never a side effect.
 | **AI Brain** | Local, persistent knowledge store (SQLite + embeddings) that survives restarts and answers questions fully offline once populated |
 | **Auto Learn** | Give it a topic; it plans subtopics, generates research questions, cross-checks multiple sources, and flags — rather than silently resolves — factual conflicts |
 | **Appearance** | Dark and light themes, a settings panel for defaults |
+| **Animated, friendly UI** | Motion-powered transitions (messages, modals, nav, toasts), icon nav rail, AI Brain dashboard with search/filter, dark/light themes |
+| **Training (explicit, optional)** | Build datasets from verified knowledge, review/approve examples, export JSONL, run real LoRA fine-tuning on a HuggingFace-format base model with live progress — clearly separate from Auto Learn |
+| **App lock** | Optional passphrase (PBKDF2) that gates every chat-history, AI Brain, dataset and training API behind a session token |
 | **Security** | Backend binds to `127.0.0.1` only, no API keys required or ever exposed to the frontend, web content is always treated as untrusted data |
 | **MCP connectors** | Endpoint scaffolding in place; honestly reported as *Experimental — not yet connected* rather than faked |
 
@@ -91,6 +94,16 @@ llama-server -m /path/to/agent-model.gguf --port 8082
 The backend never reads, converts, or modifies these files — it only
 talks to these two local, OpenAI-compatible HTTP endpoints.
 
+### Fastest: run everything with one command
+
+After the one-time setup below (`pip install -r backend/requirements.txt`, `npm install` in `frontend/`):
+
+```bash
+python scripts/run_dev.py     # or ./run.sh (macOS/Linux) / run.bat (Windows, double-click)
+```
+
+This starts the backend and frontend together and stops both on Ctrl+C. Your `llama-server` model processes are started separately (step 1).
+
 ### 2. Backend
 
 ```bash
@@ -131,8 +144,7 @@ and the settings panel.
 
 **Explicitly deferred, marked Experimental in the UI rather than faked:**
 MCP connector execution, file attachments in the composer, and
-LoRA/QLoRA model training from exported datasets (a materially larger,
-separate project from "learn knowledge first").
+converting a trained LoRA adapter to GGUF (a manual llama.cpp step; the app tells you so rather than pretending). LoRA training itself needs the optional `backend/requirements-training.txt` and a HuggingFace-format base model — GGUF files cannot be trained directly.
 
 Contributions on any of the above are very welcome — see
 [CONTRIBUTING.md](CONTRIBUTING.md).

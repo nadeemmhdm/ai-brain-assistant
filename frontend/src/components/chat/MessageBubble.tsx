@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -42,7 +43,12 @@ export function MessageBubble({
   };
 
   return (
-    <div className={cn("group flex w-full gap-3 px-2 py-3", isUser ? "justify-end" : "justify-start")}>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 320, damping: 28 }}
+      className={cn("group flex w-full gap-3 px-2 py-3", isUser ? "justify-end" : "justify-start")}
+    >
       <div className={cn("max-w-[85%] sm:max-w-[70%]", isUser && "flex flex-col items-end")}>
         {!isUser && message.thinking && (
           <div className="mb-1.5">
@@ -126,18 +132,19 @@ export function MessageBubble({
       {showSources && message.sources && (
         <SourcesDrawer sources={message.sources} onClose={() => setShowSources(false)} />
       )}
-    </div>
+    </motion.div>
   );
 }
 
 function IconBtn({ children, onClick, title }: { children: React.ReactNode; onClick: () => void; title: string }) {
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.85 }} whileHover={{ scale: 1.1 }}
       onClick={onClick}
       title={title}
       className="h-6 w-6 flex items-center justify-center rounded-md text-muted hover:text-ink hover:bg-surface-2"
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

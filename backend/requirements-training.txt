@@ -1,0 +1,13 @@
+# Optional: only needed for the Training tab's actual LoRA fine-tuning
+# (Datasets/Auto Learn/chat/etc. all work fine without this).
+#
+#   pip install -r requirements-training.txt
+#
+# These are heavy (torch alone is 1-3GB) and, without a GPU, training
+# will be slow but will still work on CPU for small models like the
+# 0.5B agent model -- just budget real time for it.
+torch>=2.2
+transformers>=4.44
+peft>=0.12
+datasets>=2.20
+accelerate>=0.33

@@ -1,5 +1,31 @@
 const BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
+// --- session token (app-lock) -------------------------------------------
+let sessionToken: string | null = sessionStorage.getItem("session_token");
+export function setSessionToken(t: string | null) {
+  sessionToken = t;
+  if (t) sessionStorage.setItem("session_token", t);
+  else sessionStorage.removeItem("session_token");
+}
+export function getSessionToken() { return sessionToken; }
+
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
+
+async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
+  const res = await fetch(url, { ...init, headers });
+  if (res.status === 401 && sessionToken) { setSessionToken(null); onUnauthorized?.(); }
+  return res;
+}
+
+async function jAuth(res: Response): Promise<any> {
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.detail || `${res.status} ${res.statusText}`);
+  return body;
+}
+
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
@@ -39,50 +65,78 @@ export interface Conversation {
 
 export const api = {
   // conversations
-  listConversations: () => fetch(`${BASE}/api/conversations`).then(j<Conversation[]>),
+  listConversations: () => authFetch(`${BASE}/api/conversations`).then(j<Conversation[]>),
   createConversation: (title = "New chat") =>
-    fetch(`${BASE}/api/conversations`, {
+    authFetch(`${BASE}/api/conversations`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     }).then(j<Conversation>),
   renameConversation: (id: string, title: string) =>
-    fetch(`${BASE}/api/conversations/${id}`, {
+    authFetch(`${BASE}/api/conversations/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     }),
-  deleteConversation: (id: string) => fetch(`${BASE}/api/conversations/${id}`, { method: "DELETE" }),
-  getMessages: (id: string) => fetch(`${BASE}/api/conversations/${id}/messages`).then(j<Message[]>),
-  deleteMessage: (id: string) => fetch(`${BASE}/api/messages/${id}`, { method: "DELETE" }),
+  deleteConversation: (id: string) => authFetch(`${BASE}/api/conversations/${id}`, { method: "DELETE" }),
+  getMessages: (id: string) => authFetch(`${BASE}/api/conversations/${id}/messages`).then(j<Message[]>),
+  deleteMessage: (id: string) => authFetch(`${BASE}/api/messages/${id}`, { method: "DELETE" }),
 
   // model / settings
-  getModelStatus: () => fetch(`${BASE}/api/model/status`).then(j<any>),
-  getSettings: () => fetch(`${BASE}/api/settings`).then(j<Record<string, string>>),
+  getModelStatus: () => authFetch(`${BASE}/api/model/status`).then(j<any>),
+  getSettings: () => authFetch(`${BASE}/api/settings`).then(j<Record<string, string>>),
   setSetting: (key: string, value: string) =>
-    fetch(`${BASE}/api/settings`, {
+    authFetch(`${BASE}/api/settings`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, value }),
     }),
 
   // brain
-  brainStats: () => fetch(`${BASE}/api/brain`).then(j<any>),
-  brainTopics: () => fetch(`${BASE}/api/brain/topics`).then(j<any[]>),
+  brainStats: () => authFetch(`${BASE}/api/brain`).then(j<any>),
+  brainTopics: () => authFetch(`${BASE}/api/brain/topics`).then(j<any[]>),
   brainKnowledge: (query = "", topic?: string) =>
-    fetch(`${BASE}/api/brain/knowledge?query=${encodeURIComponent(query)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`).then(j<any[]>),
-  brainSources: () => fetch(`${BASE}/api/brain/sources`).then(j<any[]>),
-  brainSessions: () => fetch(`${BASE}/api/brain/sessions`).then(j<any[]>),
+    authFetch(`${BASE}/api/brain/knowledge?query=${encodeURIComponent(query)}${topic ? `&topic=${encodeURIComponent(topic)}` : ""}`).then(j<any[]>),
+  brainSources: () => authFetch(`${BASE}/api/brain/sources`).then(j<any[]>),
+  deleteKnowledge: (id: string) => authFetch(`${BASE}/api/brain/knowledge/${id}`, { method: "DELETE" }),
+  brainSessions: () => authFetch(`${BASE}/api/brain/sessions`).then(j<any[]>),
 
   // auto learn
   startLearn: (topic: string) =>
-    fetch(`${BASE}/api/learn`, {
+    authFetch(`${BASE}/api/learn`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic }),
     }).then(j<{ session_id: string }>),
-  learnStatus: (session_id: string) => fetch(`${BASE}/api/learn/status?session_id=${session_id}`).then(j<any>),
+  learnStatus: (session_id: string) => authFetch(`${BASE}/api/learn/status?session_id=${session_id}`).then(j<any>),
   learnControl: (session_id: string, action: "pause" | "resume" | "cancel") =>
-    fetch(`${BASE}/api/learn/${action}?session_id=${session_id}`, { method: "POST" }),
+    authFetch(`${BASE}/api/learn/${action}?session_id=${session_id}`, { method: "POST" }),
+
+
+  // auth
+  authStatus: () => fetch(`${BASE}/api/auth/status`).then(j<{ configured: boolean }>),
+  authSetup: (password: string) =>
+    fetch(`${BASE}/api/auth/setup`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) }).then(jAuth),
+  authLogin: (password: string) =>
+    fetch(`${BASE}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) }).then(jAuth),
+  authChange: (current: string, next: string) =>
+    authFetch(`${BASE}/api/auth/change`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current, new: next }) }).then(jAuth),
+  authRemove: (password: string) =>
+    authFetch(`${BASE}/api/auth/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) }).then(jAuth),
+
+  // datasets
+  listDatasets: () => authFetch(`${BASE}/api/dataset`).then(j<any[]>),
+  createDataset: (name: string, topic?: string, only_verified = true) =>
+    authFetch(`${BASE}/api/dataset`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, topic: topic || null, only_verified }) }).then(jAuth),
+  datasetItems: (id: string) => authFetch(`${BASE}/api/dataset/${id}/items`).then(j<any[]>),
+  approveItem: (id: string, approved: boolean) =>
+    authFetch(`${BASE}/api/dataset/item/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved }) }),
+  deleteDataset: (id: string) => authFetch(`${BASE}/api/dataset/${id}`, { method: "DELETE" }),
+
+  // training
+  startTraining: (body: any) =>
+    authFetch(`${BASE}/api/training/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(jAuth),
+  trainingStatus: (job_id: string) => authFetch(`${BASE}/api/training/status?job_id=${job_id}`).then(j<any>),
+  listTraining: () => authFetch(`${BASE}/api/training`).then(j<any[]>),
 
   // mcp
-  mcpConnectors: () => fetch(`${BASE}/api/mcp/connectors`).then(j<any>),
+  mcpConnectors: () => authFetch(`${BASE}/api/mcp/connectors`).then(j<any>),
 };
 
 export interface ChatStreamHandlers {
@@ -107,7 +161,7 @@ export async function streamChat(
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
 ) {
-  const res = await fetch(`${BASE}/api/chat`, {
+  const res = await authFetch(`${BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -6,8 +6,15 @@ import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { GeneratingIndicator } from "@/components/chat/ThinkingIndicator";
+import { NavRail, type View } from "@/components/layout/NavRail";
+import { LockScreen } from "@/components/layout/LockScreen";
+import { BrainView } from "@/components/views/BrainView";
+import { TrainingView } from "@/components/views/TrainingView";
+import { Toaster } from "@/components/ui/Toaster";
+import { toast } from "@/store/useToast";
+import { motion, AnimatePresence } from "motion/react";
 import { useAppStore } from "@/store/useAppStore";
-import { api, streamChat, type Conversation, type Message } from "@/lib/api";
+import { api, streamChat, getSessionToken, setUnauthorizedHandler, type Conversation, type Message } from "@/lib/api";
 
 export default function App() {
   const {
@@ -19,6 +26,8 @@ export default function App() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [autoLearnOpen, setAutoLearnOpen] = useState(false);
+  const [view, setView] = useState<View>("chat");
+  const [locked, setLocked] = useState<boolean | null>(null); // null = still checking
   const [offline, setOffline] = useState(!navigator.onLine);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,7 +41,14 @@ export default function App() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  useEffect(() => { refreshConversations(); }, []);
+  useEffect(() => {
+    setUnauthorizedHandler(() => setLocked(true));
+    api.authStatus()
+      .then((s) => setLocked(s.configured && !getSessionToken()))
+      .catch(() => setLocked(false));
+  }, []);
+
+  useEffect(() => { if (locked === false) refreshConversations(); }, [locked]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -119,7 +135,7 @@ export default function App() {
           onDone: (d) => updateMessage(cid, assistantId, {
             id: d.id, content: d.content, thinking: d.thinking, sources: d.sources,
           }),
-          onError: (message) => updateMessage(cid, assistantId, { content: `⚠️ ${message}` }),
+          onError: (message) => { updateMessage(cid, assistantId, { content: `⚠️ ${message}` }); toast.error("Model server not reachable"); },
         },
         abortRef.current.signal,
       );
@@ -136,7 +152,7 @@ export default function App() {
     setStreaming(false);
   }
 
-  function copy(text: string) { navigator.clipboard.writeText(text); }
+  function copy(text: string) { navigator.clipboard.writeText(text); toast.success("Copied to clipboard"); }
 
   function regenerate(m: Message) {
     if (!activeConversationId) return;
@@ -168,16 +184,22 @@ export default function App() {
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title || "New chat";
 
+  if (locked === null) return null;
+  if (locked) return <LockScreen onUnlocked={() => setLocked(false)} />;
+
   return (
     <div className="h-screen w-screen flex bg-canvas text-ink">
-      <Sidebar
+      <NavRail view={view} onChange={setView} />
+      {view === "brain" && <BrainView onOpenAutoLearn={() => setAutoLearnOpen(true)} />}
+      {view === "training" && <TrainingView />}
+      {view === "chat" && <Sidebar
         conversations={conversations}
         onNew={newConversation}
         onSelect={selectConversation}
         onRename={renameConversation}
         onDelete={deleteConversation}
-      />
-      <div className="flex-1 flex flex-col min-w-0">
+      />}
+      {view === "chat" && <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={activeTitle} onOpenAutoLearn={() => setAutoLearnOpen(true)} offline={offline} />
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
@@ -221,9 +243,10 @@ export default function App() {
             searchMode={searchMode} setSearchMode={setSearchMode}
           />
         </div>
-      </div>
+      </div>}
 
       <SettingsPanel />
+      <Toaster />
       {autoLearnOpen && <AutoLearnModal onClose={() => setAutoLearnOpen(false)} />}
     </div>
   );

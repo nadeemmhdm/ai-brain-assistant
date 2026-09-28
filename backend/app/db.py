@@ -83,6 +83,40 @@ CREATE TABLE IF NOT EXISTS search_cache (
     results_json TEXT,
     fetched_at REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS datasets (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    topic TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',   -- draft|approved
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS dataset_items (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    instruction TEXT NOT NULL,
+    input TEXT NOT NULL DEFAULT '',
+    output TEXT NOT NULL,
+    approved INTEGER NOT NULL DEFAULT 1,
+    source_knowledge_id TEXT,
+    FOREIGN KEY (dataset_id) REFERENCES datasets(id)
+);
+
+CREATE TABLE IF NOT EXISTS training_jobs (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL,
+    base_model_path TEXT NOT NULL,
+    output_dir TEXT NOT NULL,
+    hyperparams_json TEXT,
+    status TEXT NOT NULL,             -- queued|running|completed|failed|cancelled
+    progress_pct INTEGER NOT NULL DEFAULT 0,
+    current_step TEXT,
+    log_tail TEXT,
+    error TEXT,
+    started_at REAL NOT NULL,
+    finished_at REAL
+);
 """
 
 def _connect():

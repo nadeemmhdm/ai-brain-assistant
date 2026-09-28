@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { X, ShieldCheck, Plug, Sun, Moon, Cpu, Database } from "lucide-react";
+import { ShieldCheck, Plug, Sun, Moon, Cpu, Database, Lock } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
+import { toast } from "@/store/useToast";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/useAppStore";
-import { api } from "@/lib/api";
+import { api, setSessionToken } from "@/lib/api";
 import type { ReasoningLevel, ModelChoice } from "@/lib/api";
 
 const LEVELS: ReasoningLevel[] = ["off", "low", "medium", "high", "max"];
@@ -18,26 +20,19 @@ export function SettingsPanel() {
   } = useAppStore();
   const [brain, setBrain] = useState<any>(null);
   const [mcp, setMcp] = useState<any>(null);
+  const [locked, setLocked] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
 
   useEffect(() => {
     if (!settingsOpen) return;
     api.brainStats().then(setBrain).catch(() => {});
     api.mcpConnectors().then(setMcp).catch(() => {});
+    api.authStatus().then((a) => setLocked(a.configured)).catch(() => {});
   }, [settingsOpen]);
 
-  if (!settingsOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={() => setSettingsOpen(false)} />
-      <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto bg-surface border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold">Settings</h2>
-          <button onClick={() => setSettingsOpen(false)} className="text-muted hover:text-ink">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
+    <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
         <Section icon={<Cpu className="h-4 w-4" />} title="Model & reasoning">
           <Field label="Default model">
             <div className="flex gap-2">
@@ -96,6 +91,42 @@ export function SettingsPanel() {
           )}
         </Section>
 
+        <Section icon={<Lock className="h-4 w-4" />} title="Protect chats & AI Brain">
+          <p className="text-xs text-muted mb-2">
+            {locked
+              ? "A passphrase is set. The app asks for it each session; all chat history and knowledge is blocked at the API until you unlock."
+              : "Optional. Set a passphrase so nobody else who opens this app can read your chat history or AI Brain."}
+          </p>
+          <div className="flex gap-2 flex-wrap items-center">
+            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)}
+              placeholder={locked ? "Current passphrase" : "New passphrase"}
+              className="h-8 px-2.5 rounded-md bg-surface-2 border border-border text-xs focus:outline-none focus:border-accent" />
+            {locked && (
+              <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)}
+                placeholder="New passphrase (to change)"
+                className="h-8 px-2.5 rounded-md bg-surface-2 border border-border text-xs focus:outline-none focus:border-accent" />
+            )}
+            {!locked ? (
+              <Button size="sm" disabled={pw.length < 4} onClick={async () => {
+                try { const r = await api.authSetup(pw); setSessionToken(r.token); setLocked(true); setPw(""); toast.success("Passphrase set"); }
+                catch (e: any) { toast.error(e.message); }
+              }}>Enable</Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" disabled={!pw || pw2.length < 4} onClick={async () => {
+                  try { const r = await api.authChange(pw, pw2); setSessionToken(r.token); setPw(""); setPw2(""); toast.success("Passphrase changed"); }
+                  catch (e: any) { toast.error(e.message); }
+                }}>Change</Button>
+                <Button size="sm" variant="destructive" disabled={!pw} onClick={async () => {
+                  try { await api.authRemove(pw); setSessionToken(null); setLocked(false); setPw(""); toast.success("Passphrase removed"); }
+                  catch (e: any) { toast.error(e.message); }
+                }}>Remove</Button>
+              </>
+            )}
+          </div>
+          <p className="text-[11px] text-muted mt-2">Forgotten passphrase? Stop the backend and delete the <code>auth_password_hash</code> row from <code>kv_settings</code> in <code>backend/data/brain.db</code>.</p>
+        </Section>
+
         <Section icon={<ShieldCheck className="h-4 w-4" />} title="Privacy & security">
           <ul className="text-xs text-muted space-y-1 list-disc pl-4">
             <li>Chats, the AI Brain, and settings are stored only in a local SQLite file on this machine.</li>
@@ -104,8 +135,7 @@ export function SettingsPanel() {
             <li>Web content fetched during research is treated as untrusted data, never as instructions.</li>
           </ul>
         </Section>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
