@@ -7,6 +7,9 @@ so breaking changes may still happen between minor versions).
 
 ## [Unreleased]
 
+### Added
+- Landing page for GitHub Pages (`docs/index.html`): responsive, dark/terracotta theme matching the app, a typed-out terminal hero, an animated architecture diagram, a 3-line mobile hamburger menu, and live GitHub star/release badges fetched client-side.
+
 ## [0.4.0-beta.1] - 2026-09-29
 
 ### Fixed

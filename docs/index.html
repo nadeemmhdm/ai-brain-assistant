@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AI Brain — a local-first AI assistant you actually own</title>
+<meta name="description" content="AI Brain runs entirely on your own computer: chat with your own GGUF models, research the web with cited sources, build an offline knowledge base, and talk by voice — no API key, no cloud, nothing leaves your machine." />
+<meta name="theme-color" content="#14120f" />
+<meta property="og:title" content="AI Brain — a local-first AI assistant you actually own" />
+<meta property="og:description" content="Open source. Runs on your machine. No API key required." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#14120f; --surface:#1c1a16; --surface-2:#242019; --border:#33291f;
+  --ink:#f2ede2; --muted:#9c9282; --muted-2:#6f6656;
+  --accent:#d97757; --accent-ink:#2a1810; --accent2:#7fb69e;
+  --radius:14px; --radius-sm:8px;
+  --serif:'Fraunces', ui-serif, Georgia, serif;
+  --sans:'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --maxw:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:76px}
+body{
+  margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; line-height:1.5;
+}
+img,svg{display:block; max-width:100%}
+a{color:inherit}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px}
+.mono{font-family:var(--mono)}
+
+/* ---------- background texture: faint wiring grid, not a gradient blob ---------- */
+.grid-bg{
+  position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size:64px 64px; opacity:.18;
+  mask-image:radial-gradient(ellipse 900px 500px at 70% 0%, black, transparent 75%);
+}
+
+/* ---------- header ---------- */
+header{
+  position:sticky; top:0; z-index:40; backdrop-filter:blur(10px);
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom:1px solid var(--border);
+}
+.nav{display:flex; align-items:center; justify-content:space-between; height:68px}
+.brand{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-weight:600; font-size:15px; letter-spacing:.01em; text-decoration:none}
+.brand .dot{width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent)}
+nav.links{display:flex; align-items:center; gap:28px; font-family:var(--mono); font-size:13.5px}
+nav.links a.navlink{color:var(--muted); text-decoration:none; transition:color .15s}
+nav.links a.navlink:hover{color:var(--ink)}
+.gh-btn{
+  display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px;
+  border:1px solid var(--border); background:var(--surface); font-family:var(--mono); font-size:13px;
+  text-decoration:none; color:var(--ink); transition:border-color .15s, transform .15s;
+}
+.gh-btn:hover{border-color:var(--accent); transform:translateY(-1px)}
+.gh-btn svg{width:15px; height:15px}
+#star-count{color:var(--muted)}
+
+.burger{display:none; flex-direction:column; justify-content:center; gap:5px; width:36px; height:36px; background:none; border:0; cursor:pointer; padding:0}
+.burger span{display:block; height:2px; width:22px; background:var(--ink); border-radius:2px; transition:transform .25s, opacity .25s}
+.burger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.burger.open span:nth-child(2){opacity:0}
+.burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+.mobile-panel{
+  display:none; position:fixed; inset:68px 0 0 0; z-index:39; background:var(--bg);
+  padding:28px 24px; overflow-y:auto;
+  transform:translateY(-8px); opacity:0; pointer-events:none; transition:transform .22s ease, opacity .22s ease;
+}
+.mobile-panel.open{display:block; transform:translateY(0); opacity:1; pointer-events:auto}
+.mobile-panel a{display:block; padding:16px 0; border-bottom:1px solid var(--border); font-family:var(--mono); font-size:17px; text-decoration:none; color:var(--ink)}
+.mobile-panel .gh-btn{margin-top:24px; width:100%; justify-content:center}
+
+/* ---------- hero ---------- */
+.hero{padding:76px 0 40px}
+.hero-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center}
+.eyebrow-badges{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px}
+.badge{
+  font-family:var(--mono); font-size:12px; padding:5px 10px; border-radius:999px;
+  border:1px solid var(--border); color:var(--muted); background:var(--surface);
+}
+.badge.accent{color:var(--accent); border-color:color-mix(in srgb, var(--accent) 40%, var(--border))}
+h1.display{
+  font-family:var(--serif); font-weight:500; font-size:clamp(34px, 5vw, 58px);
+  line-height:1.08; letter-spacing:-.01em; margin:0 0 20px;
+}
+h1.display em{font-style:italic; color:var(--accent)}
+.lede{font-size:18px; color:var(--muted); max-width:52ch; margin:0 0 28px}
+.cta-row{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:34px}
+.btn{
+  display:inline-flex; align-items:center; gap:8px; padding:13px 22px; border-radius:10px;
+  font-family:var(--mono); font-size:14px; text-decoration:none; transition:transform .15s, filter .15s;
+}
+.btn-primary{background:var(--accent); color:var(--accent-ink); font-weight:600}
+.btn-primary:hover{filter:brightness(1.08); transform:translateY(-1px)}
+.btn-ghost{border:1px solid var(--border); color:var(--ink)}
+.btn-ghost:hover{border-color:var(--muted-2)}
+.trust-row{display:flex; gap:22px; flex-wrap:wrap; font-family:var(--mono); font-size:12.5px; color:var(--muted-2)}
+.trust-row span{display:flex; align-items:center; gap:6px}
+
+/* terminal mock */
+.term{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  overflow:hidden; box-shadow:0 30px 60px -30px rgba(0,0,0,.6);
+}
+.term-bar{display:flex; align-items:center; gap:7px; padding:12px 16px; border-bottom:1px solid var(--border)}
+.term-bar i{width:10px; height:10px; border-radius:50%; background:var(--border)}
+.term-bar span.fname{margin-left:8px; font-family:var(--mono); font-size:12px; color:var(--muted-2)}
+.term-body{padding:20px 20px 24px; font-family:var(--mono); font-size:13.5px; line-height:1.9; min-height:230px}
+.term-body .ln{white-space:pre-wrap; word-break:break-word}
+.term-body .p{color:var(--accent2)}
+.term-body .c{color:var(--muted)}
+.cursor{display:inline-block; width:8px; height:16px; background:var(--accent); vertical-align:-3px; animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- section shell ---------- */
+section{padding:96px 0}
+.section-head{max-width:640px; margin-bottom:52px}
+.kicker{font-family:var(--mono); font-size:13px; color:var(--accent2); margin:0 0 12px}
+h2.display{font-family:var(--serif); font-weight:500; font-size:clamp(28px, 3.4vw, 40px); line-height:1.15; margin:0 0 16px}
+.section-sub{color:var(--muted); font-size:16px; max-width:60ch; margin:0}
+
+/* reveal */
+.reveal{opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease}
+.reveal.in{opacity:1; transform:translateY(0)}
+
+/* ---------- features: asymmetric layout ---------- */
+.feature-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:18px}
+.feature-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:26px; transition:border-color .2s, transform .2s;
+}
+.feature-card:hover{border-color:color-mix(in srgb, var(--accent) 35%, var(--border)); transform:translateY(-2px)}
+.feature-card h3{font-family:var(--sans); font-size:16.5px; font-weight:600; margin:14px 0 8px}
+.feature-card p{color:var(--muted); font-size:14px; line-height:1.6; margin:0}
+.f-icon{font-size:22px}
+.feature-card.big{grid-column:span 3; grid-row:span 2; display:flex; flex-direction:column; justify-content:space-between}
+.feature-card.med{grid-column:span 3}
+.feature-card.small{grid-column:span 2}
+
+.brain-mock{
+  margin-top:18px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--bg);
+  padding:14px; font-family:var(--mono); font-size:11.5px;
+}
+.bubble{border-radius:10px; padding:8px 11px; margin-bottom:8px; max-width:80%; line-height:1.5}
+.bubble.user{background:var(--accent); color:var(--accent-ink); margin-left:auto}
+.bubble.ai{background:var(--surface-2); color:var(--muted)}
+.src-pill{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--accent2); border:1px solid var(--border); border-radius:999px; padding:2px 8px; margin-top:2px}
+
+/* ---------- architecture ---------- */
+.arch{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:40px 30px; overflow-x:auto}
+.arch svg{min-width:640px; margin:0 auto}
+.arch-node{fill:var(--surface-2); stroke:var(--border)}
+.arch-node.accent{stroke:var(--accent)}
+.arch text{font-family:var(--mono); font-size:12px; fill:var(--ink)}
+.arch text.sub{fill:var(--muted); font-size:10.5px}
+.arch path.flow{fill:none; stroke:var(--border); stroke-width:1.5}
+.arch path.flow.draw{stroke:var(--accent2); stroke-dasharray:400; stroke-dashoffset:400; transition:stroke-dashoffset 1.4s ease}
+.arch path.flow.draw.in{stroke-dashoffset:0}
+
+/* ---------- quick start ---------- */
+.steps{display:grid; gap:14px}
+.step{
+  display:grid; grid-template-columns:44px 1fr; gap:18px; align-items:start;
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 22px;
+}
+.step-num{font-family:var(--serif); font-size:22px; color:var(--accent); line-height:1}
+.step h4{margin:0 0 8px; font-size:15px; font-weight:600}
+.code-row{position:relative; margin-top:10px}
+pre{
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:13px 44px 13px 15px; font-family:var(--mono); font-size:13px; overflow-x:auto; margin:0; color:var(--ink);
+}
+.copy-btn{
+  position:absolute; top:8px; right:8px; background:var(--surface-2); border:1px solid var(--border);
+  color:var(--muted); font-family:var(--mono); font-size:11px; border-radius:6px; padding:5px 8px; cursor:pointer;
+}
+.copy-btn:hover{color:var(--ink); border-color:var(--muted-2)}
+
+/* ---------- CTA band ---------- */
+.cta-band{
+  background:linear-gradient(135deg, var(--surface), var(--surface-2)); border:1px solid var(--border);
+  border-radius:20px; padding:56px 44px; text-align:left; display:flex; justify-content:space-between; align-items:center; gap:30px; flex-wrap:wrap;
+}
+.cta-band h2{font-family:var(--serif); font-weight:500; font-size:clamp(24px,3vw,32px); margin:0 0 8px}
+.cta-band p{color:var(--muted); margin:0; max-width:46ch}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--border); padding:44px 0}
+.footer-grid{display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; font-family:var(--mono); font-size:13px; color:var(--muted)}
+.footer-links{display:flex; gap:20px; flex-wrap:wrap}
+.footer-links a{text-decoration:none; color:var(--muted); transition:color .15s}
+.footer-links a:hover{color:var(--ink)}
+.made-by a{color:var(--accent2); text-decoration:none}
+.made-by a:hover{text-decoration:underline}
+
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+  .reveal{opacity:1; transform:none; transition:none}
+  .cursor{animation:none}
+  .arch path.flow.draw{transition:none; stroke-dashoffset:0}
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:980px){
+  .hero-grid{grid-template-columns:1fr; gap:40px}
+  .feature-card.big{grid-column:span 6}
+  .feature-card.med{grid-column:span 3}
+  .feature-card.small{grid-column:span 3}
+}
+@media (max-width:760px){
+  nav.links{display:none}
+  #gh-btn-desktop{display:none}
+  .burger{display:flex}
+  .feature-grid{grid-template-columns:1fr 1fr}
+  .feature-card.big,.feature-card.med,.feature-card.small{grid-column:span 2}
+  section{padding:64px 0}
+  .cta-band{flex-direction:column; align-items:flex-start; padding:36px 26px}
+  .footer-grid{flex-direction:column; align-items:flex-start}
+}
+@media (max-width:520px){
+  .wrap{padding:0 18px}
+  .feature-grid{grid-template-columns:1fr}
+  .feature-card.big,.feature-card.med,.feature-card.small{grid-column:span 1}
+  .cta-row{flex-direction:column; align-items:stretch}
+  .btn{justify-content:center}
+  .trust-row{gap:14px}
+  .step{grid-template-columns:32px 1fr; padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top"><span class="dot"></span>ai-brain-assistant</a>
+    <nav class="links">
+      <a class="navlink" href="#features">features</a>
+      <a class="navlink" href="#architecture">how it works</a>
+      <a class="navlink" href="#quickstart">quick start</a>
+      <a class="navlink" href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/README.md" target="_blank" rel="noopener">docs</a>
+    </nav>
+    <a class="gh-btn" href="https://github.com/nadeemmhdm/ai-brain-assistant" target="_blank" rel="noopener" id="gh-btn-desktop">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5A11.5 11.5 0 0 0 .5 12c0 5.1 3.3 9.4 7.9 11 .6.1.8-.3.8-.6v-2.2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6a11.5 11.5 0 0 0 7.9-11A11.5 11.5 0 0 0 12 .5Z"/></svg>
+      <span>GitHub</span><span id="star-count" class="mono"></span>
+    </a>
+    <button class="burger" id="burger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
+  </div>
+  <div class="mobile-panel" id="mobile-panel">
+    <a href="#features">features</a>
+    <a href="#architecture">how it works</a>
+    <a href="#quickstart">quick start</a>
+    <a href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/README.md" target="_blank" rel="noopener">docs</a>
+    <a class="gh-btn" href="https://github.com/nadeemmhdm/ai-brain-assistant" target="_blank" rel="noopener">view source on GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow-badges">
+          <span class="badge accent" id="version-badge">open source</span>
+          <span class="badge">MIT license</span>
+          <span class="badge">zero mandatory API keys</span>
+        </div>
+        <h1 class="display">An AI assistant that lives on <em>your</em> computer, not someone else's.</h1>
+        <p class="lede">Chat with your own local models, research the web with cited sources, and grow an offline knowledge base over time — nothing leaves your machine unless you explicitly connect something.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/nadeemmhdm/ai-brain-assistant">Get the code</a>
+          <a class="btn btn-ghost" href="https://github.com/nadeemmhdm/ai-brain-assistant/releases">Latest release</a>
+        </div>
+        <div class="trust-row">
+          <span>✓ Local-first</span>
+          <span>✓ No paid services required</span>
+          <span>✓ MIT licensed</span>
+        </div>
+      </div>
+      <div class="term reveal">
+        <div class="term-bar"><i></i><i></i><i></i><span class="fname">terminal</span></div>
+        <div class="term-body" id="typer"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="kicker">what's inside</p>
+        <h2 class="display">One assistant, everything running locally</h2>
+        <p class="section-sub">From the first message to a fine-tuned model, every step happens on your own hardware.</p>
+      </div>
+      <div class="feature-grid reveal">
+        <div class="feature-card big">
+          <div>
+            <span class="f-icon">🧠</span>
+            <h3>AI Brain — a knowledge base that's actually yours</h3>
+            <p>Point it at a topic and it plans subtopics, cross-checks multiple sources, and stores verified knowledge locally — so the next question can be answered offline, instantly.</p>
+          </div>
+          <div class="brain-mock">
+            <div class="bubble user">What's DNSSEC?</div>
+            <div class="bubble ai">DNSSEC adds cryptographic signatures to DNS responses, preventing spoofing…</div>
+            <span class="src-pill">● view sources (3)</span>
+          </div>
+        </div>
+        <div class="feature-card med"><span class="f-icon">🔎</span><h3>Search, cited &amp; trust-ranked</h3><p>Free, API-key-free web research with a four-tier source trust system and inline citations.</p></div>
+        <div class="feature-card med"><span class="f-icon">🎙️</span><h3>Talk to it, out loud</h3><p>Offline speech-to-text and text-to-speech, plus a "Hey Nila" wake phrase — download once, then no internet needed.</p></div>
+        <div class="feature-card small"><span class="f-icon">🔐</span><h3>Locked down by default</h3><p>Binds to localhost only. An optional passphrase gates your chats and knowledge base.</p></div>
+        <div class="feature-card small"><span class="f-icon">🧩</span><h3>MCP connectors</h3><p>A real client with a trusted starter catalog — install, then use, with your permission every time.</p></div>
+        <div class="feature-card small"><span class="f-icon">✉️</span><h3>Google, on your terms</h3><p>Gmail, Meet, Sheets, Slides via your own OAuth client. Every action asks first.</p></div>
+        <div class="feature-card small"><span class="f-icon">🛠️</span><h3>Train it further</h3><p>Turn verified knowledge into a dataset and run real LoRA fine-tuning, entirely optional.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="kicker">how it works</p>
+        <h2 class="display">Your machine is the whole stack</h2>
+        <p class="section-sub">The UI, the backend, and the models it talks to are all processes on your own computer.</p>
+      </div>
+      <div class="arch reveal">
+        <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+          <g id="flow-lines">
+            <path class="flow draw" d="M150,60 L150,120" />
+            <path class="flow draw" d="M150,150 C150,180 260,180 290,180" />
+            <path class="flow draw" d="M290,180 C400,180 400,80 470,80" />
+            <path class="flow draw" d="M290,180 C400,180 400,220 470,220" />
+            <path class="flow draw" d="M630,80 C700,80 700,150 770,150" />
+            <path class="flow draw" d="M630,220 C700,220 700,150 770,150" />
+          </g>
+          <rect class="arch-node" x="70" y="20" width="160" height="40" rx="8"/>
+          <text x="150" y="45" text-anchor="middle">React + Vite UI</text>
+          <rect class="arch-node accent" x="70" y="120" width="160" height="60" rx="8"/>
+          <text x="150" y="145" text-anchor="middle">FastAPI backend</text>
+          <text class="sub" x="150" y="163" text-anchor="middle">127.0.0.1 only</text>
+          <rect class="arch-node" x="230" y="150" width="150" height="60" rx="8"/>
+          <text x="305" y="175" text-anchor="middle">AI Brain</text>
+          <text class="sub" x="305" y="193" text-anchor="middle">SQLite + embeddings</text>
+          <rect class="arch-node" x="470" y="50" width="160" height="60" rx="8"/>
+          <text x="550" y="75" text-anchor="middle">Main model</text>
+          <text class="sub" x="550" y="93" text-anchor="middle">llama-server · chat/RAG</text>
+          <rect class="arch-node" x="470" y="190" width="160" height="60" rx="8"/>
+          <text x="550" y="215" text-anchor="middle">Agent model</text>
+          <text class="sub" x="550" y="233" text-anchor="middle">llama-server · research</text>
+          <rect class="arch-node accent" x="770" y="120" width="110" height="60" rx="8"/>
+          <text x="825" y="145" text-anchor="middle">Your GGUF</text>
+          <text class="sub" x="825" y="163" text-anchor="middle">models</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <p class="kicker">get started</p>
+        <h2 class="display">Three commands to a running assistant</h2>
+      </div>
+      <div class="steps reveal">
+        <div class="step">
+          <span class="step-num mono">01</span>
+          <div>
+            <h4>Serve your GGUF models with llama.cpp</h4>
+            <div class="code-row"><pre id="code-1">llama-server -m main-model.gguf  --port 8081
+llama-server -m agent-model.gguf --port 8082</pre><button class="copy-btn" data-target="code-1">copy</button></div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num mono">02</span>
+          <div>
+            <h4>Install the backend and frontend</h4>
+            <div class="code-row"><pre id="code-2">git clone https://github.com/nadeemmhdm/ai-brain-assistant
+cd ai-brain-assistant/backend && pip install -r requirements.txt
+cd ../frontend && npm install</pre><button class="copy-btn" data-target="code-2">copy</button></div>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num mono">03</span>
+          <div>
+            <h4>Run everything with one command</h4>
+            <div class="code-row"><pre id="code-3">python scripts/run_dev.py</pre><button class="copy-btn" data-target="code-3">copy</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="cta-band reveal">
+        <div>
+          <h2>Read the full setup guide</h2>
+          <p>Google integration, voice setup, MCP connectors, and every environment variable are documented in the README.</p>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/nadeemmhdm/ai-brain-assistant#readme">Open the README</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-grid">
+    <div class="footer-links">
+      <a href="https://github.com/nadeemmhdm/ai-brain-assistant">GitHub</a>
+      <a href="https://github.com/nadeemmhdm/ai-brain-assistant/releases">Releases</a>
+      <a href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/SECURITY.md">Security</a>
+      <a href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/CONTRIBUTING.md">Contributing</a>
+    </div>
+    <div class="made-by">built by <a href="https://github.com/nadeemmhdm" target="_blank" rel="noopener">Nadeem</a> · <a href="https://www.instagram.com/n4d.eem" target="_blank" rel="noopener">Instagram</a></div>
+  </div>
+</footer>
+
+<script>
+// mobile menu
+const burger = document.getElementById('burger'), panel = document.getElementById('mobile-panel');
+burger.addEventListener('click', () => {
+  const open = burger.classList.toggle('open');
+  panel.classList.toggle('open', open);
+  burger.setAttribute('aria-expanded', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+});
+panel.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { burger.classList.remove('open'); panel.classList.remove('open'); document.body.style.overflow = ''; }));
+
+// scroll reveal (single, consistent effect)
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce) {
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  const io2 = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.querySelectorAll('.flow.draw').forEach(p => p.classList.add('in')); });
+  }, { threshold: 0.3 });
+  document.querySelectorAll('.arch').forEach(el => io2.observe(el));
+} else {
+  document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+  document.querySelectorAll('.flow.draw').forEach(el => el.classList.add('in'));
+}
+
+// hero terminal typewriter (runs once)
+const lines = [
+  { t: '$ git clone https://github.com/nadeemmhdm/ai-brain-assistant', cls: 'p' },
+  { t: '$ python scripts/run_dev.py', cls: 'p' },
+  { t: 'Starting AI Brain (backend + frontend)...', cls: 'c' },
+  { t: '[backend]  Uvicorn running on http://127.0.0.1:8000', cls: 'c' },
+  { t: '[frontend] Local: http://127.0.0.1:5173', cls: 'c' },
+  { t: 'Nila is ready.', cls: '' },
+];
+const typer = document.getElementById('typer');
+function typeTerminal() {
+  let li = 0, ci = 0;
+  const speed = reduce ? 0 : 16;
+  function step() {
+    if (li >= lines.length) return;
+    const cur = lines[li];
+    let el = typer.querySelector('.ln.current');
+    if (!el) { el = document.createElement('div'); el.className = 'ln current ' + cur.cls; typer.appendChild(el); }
+    el.textContent = cur.t.slice(0, ci) ;
+    if (ci < cur.t.length) { ci++; setTimeout(step, speed); }
+    else { el.classList.remove('current'); li++; ci = 0; setTimeout(step, 220); }
+  }
+  const cursor = document.createElement('span'); cursor.className = 'cursor';
+  typer.appendChild(cursor);
+  step();
+}
+if (reduce) { lines.forEach(l => { const d = document.createElement('div'); d.className = 'ln ' + l.cls; d.textContent = l.t; typer.appendChild(d); }); }
+else { const ob = new IntersectionObserver((e) => { if (e[0].isIntersecting) { typeTerminal(); ob.disconnect(); } }); ob.observe(typer); }
+
+// live GitHub stats (public, unauthenticated API — fine to fail quietly)
+fetch('https://api.github.com/repos/nadeemmhdm/ai-brain-assistant')
+  .then(r => r.ok ? r.json() : null)
+  .then(d => {
+    if (!d) return;
+    document.getElementById('star-count').textContent = '★ ' + (d.stargazers_count ?? 0);
+  }).catch(() => {});
+fetch('https://api.github.com/repos/nadeemmhdm/ai-brain-assistant/releases/latest')
+  .then(r => r.ok ? r.json() : null)
+  .then(d => { if (d && d.tag_name) document.getElementById('version-badge').textContent = d.tag_name; })
+  .catch(() => {});
+
+// copy buttons
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const text = document.getElementById(btn.dataset.target).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      const old = btn.textContent; btn.textContent = 'copied'; setTimeout(() => btn.textContent = old, 1400);
+    });
+  });
+});
+</script>
+</body>
+</html>

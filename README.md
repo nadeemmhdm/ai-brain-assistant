@@ -10,6 +10,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](backend/requirements.txt)
 [![Node 18+](https://img.shields.io/badge/node-18%2B-339933.svg)](frontend/package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Landing page](https://img.shields.io/badge/landing%20page-live-d97757.svg)](https://nadeemmhdm.github.io/ai-brain-assistant/)
 
 ---
 
@@ -84,6 +85,8 @@ real today versus explicitly deferred.
               ├── Main model  (e.g. 1.5B) — chat, synthesis, RAG answers
               └── Agent model (e.g. 0.5B) — query gen, classification
 ```
+
+**[→ View the landing page](https://nadeemmhdm.github.io/ai-brain-assistant/)**
 
 ## Quick start
 
