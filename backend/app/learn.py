@@ -8,7 +8,7 @@ for final knowledge synthesis and conflict explanations.
 """
 import asyncio
 import json
-from . import db, search, brain, llm_client
+from . import db, search, brain, llm_client, research
 
 SESSIONS: dict[str, dict] = {}  # session_id -> live progress state (in-memory)
 
@@ -75,25 +75,18 @@ async def run_auto_learn(session_id: str, topic: str):
                 await asyncio.sleep(0.5)
 
             state["current_task"] = f"Researching: {question}"
-            results = search.search(question, max_results=search_top_n())
+            results = await asyncio.to_thread(search.search, question, "duckduckgo", search_top_n())
             state["sources_found"] += len(results)
 
             collected = []
             for r in results:
                 if not r.get("url"):
                     continue
-                page = search.fetch_and_extract(r["url"])
+                page = await asyncio.to_thread(search.fetch_and_extract, r["url"])
                 if not page:
                     continue
                 state["pages_processed"] += 1
-                sid = db.new_id()
-                with db.get_conn() as conn:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO sources (id, url, title, source_type, trust_tier, fetched_at, content_hash) "
-                        "VALUES (?,?,?,?,?,?,?)",
-                        (sid, page["url"], r.get("title"), page["source_type"], page["trust_tier"],
-                         page["fetched_at"], page["content_hash"]),
-                    )
+                sid = research._source_row(page["url"], r.get("title"), page["trust_tier"], page["source_type"], page["content_hash"], page["fetched_at"])
                 collected.append({**page, "id": sid, "title": r.get("title")})
 
             if not collected:
@@ -117,6 +110,9 @@ async def run_auto_learn(session_id: str, topic: str):
                                              f"Give a concise answer (3-6 sentences), and note any factual conflict between sources."}],
                 reasoning_level="medium",
             )
+            if not synthesis.strip():           # model offline/empty: never store an empty "answer"
+                state["questions_done"] += 1
+                continue
             conflict = None
             verification = "verified" if len(collected) >= 2 else "unverified"
             if "conflict" in synthesis.lower() or "disagree" in synthesis.lower():
@@ -156,7 +152,11 @@ def search_top_n() -> int:
     return settings.max_sources_per_question
 
 def start_session(topic: str) -> str:
+    """Must be called from inside the running event loop (async endpoint / scheduler)."""
     session_id = db.new_id()
     SESSIONS[session_id] = _new_state(topic)
-    asyncio.create_task(run_auto_learn(session_id, topic))
+    asyncio.get_running_loop().create_task(run_auto_learn(session_id, topic))
     return session_id
+
+def any_running() -> bool:
+    return any(s["status"] in ("running", "paused") for s in SESSIONS.values())

@@ -1,12 +1,15 @@
 import { motion } from "motion/react";
-import { MessageSquare, Database, Cpu, Settings } from "lucide-react";
+import { MessageSquare, Database, Cpu, Settings, Boxes, Mail, Plug } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
-export type View = "chat" | "brain" | "training";
+export type View = "chat" | "brain" | "training" | "models" | "google" | "mcp";
 const ITEMS: { id: View; icon: any; label: string }[] = [
   { id: "chat", icon: MessageSquare, label: "Chat" },
   { id: "brain", icon: Database, label: "AI Brain" },
+  { id: "models", icon: Boxes, label: "Models" },
   { id: "training", icon: Cpu, label: "Training" },
+  { id: "google", icon: Mail, label: "Google" },
+  { id: "mcp", icon: Plug, label: "MCP" },
 ];
 
 export function NavRail({ view, onChange }: { view: View; onChange: (v: View) => void }) {

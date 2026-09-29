@@ -38,6 +38,12 @@ explicit, user-initiated action, never a side effect.
 | **Chat** | Streaming responses, markdown + code highlighting, copy / regenerate / fork / edit-and-resend / delete, auto-saved history (SQLite) |
 | **Reasoning levels** | Off · Low · Medium · High · Max (default **Medium**) — controls sampling and an optional `<thinking>` scratchpad, shown in the UI as a live "thinking" animation |
 | **Two-model architecture** | A larger model (e.g. Qwen2.5-1.5B) for chat, RAG, and synthesis; a smaller model (e.g. Qwen2.5-0.5B) for cheap agent tasks (query generation, classification, summarization) |
+| **Assistant identity** | Default name **Nila**, friendly persona, deterministic answers to "who made you"/"your name"/"your age" (never guesses or names the underlying model), your developer's links rendered clickable |
+| **Voice** | Offline speech-to-text/text-to-speech (downloaded once), full voice-to-voice mode, and a "Hey Nila" wake phrase; falls back to the browser's built-in voice with zero setup |
+| **Model manager** | Import a `.gguf` you already have, load/unload models, search and download from Hugging Face (optional token for gated repos) |
+| **Google integration** | Your own OAuth client for Gmail, Meet, Sheets, Slides — every action asks permission first (**this time / this chat / always / deny**) |
+| **MCP connectors** | A real stdio client with a trusted starter catalog (filesystem, fetch, git, sequential-thinking) — install, discover tools, call them with your permission |
+| **Skills** | Reusable saved instructions (Summarize, Explain simply, Fix grammar, Translate, Brainstorm, Code review) pick one from the composer |
 | **Search mode** | API-key-free web research (DuckDuckGo by default, provider-swappable), robots.txt-respecting, with a 4-tier source trust system (A: gov/edu/standards → D: forums/UGC) and a per-message "View sources" panel |
 | **AI Brain** | Local, persistent knowledge store (SQLite + embeddings) that survives restarts and answers questions fully offline once populated |
 | **Auto Learn** | Give it a topic; it plans subtopics, generates research questions, cross-checks multiple sources, and flags — rather than silently resolves — factual conflicts |
@@ -126,6 +132,20 @@ Open **http://127.0.0.1:5173**. By default it talks only to
 `http://127.0.0.1:8000`; override with `VITE_API_BASE` in a `frontend/.env`
 if you changed the backend port.
 
+## Google (optional)
+
+To use the Gmail/Meet/Sheets/Slides tab:
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project, then an **OAuth client ID** of type "Web application".
+2. Add `http://127.0.0.1:8000/api/google/callback` as an authorised redirect URI.
+3. Enable the Gmail, Calendar, Sheets, Slides and Drive APIs for the project.
+4. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `backend/.env`, then restart the backend.
+
+Tokens are encrypted at rest and never reach the frontend. While the Cloud project is in "Testing" mode, Google expires the connection after 7 days — just reconnect from the Google tab.
+
+## MCP connectors (optional)
+
+The trusted starter catalog (filesystem, fetch, git, sequential-thinking) runs via `npx`, so it needs Node.js — already required for the frontend. Install one from the **MCP** tab; every tool call still asks your permission.
+
 ## Configuration
 
 All configuration lives in environment variables — see
@@ -144,10 +164,18 @@ and the settings panel.
 
 **Explicitly deferred, marked Experimental in the UI rather than faked:**
 MCP connector execution, file attachments in the composer, and
-converting a trained LoRA adapter to GGUF (a manual llama.cpp step; the app tells you so rather than pretending). LoRA training itself needs the optional `backend/requirements-training.txt` and a HuggingFace-format base model — GGUF files cannot be trained directly.
+converting a trained LoRA adapter to GGUF (a manual llama.cpp step; the app tells you so rather than pretending), LoRA training itself needs the optional `backend/requirements-training.txt` and a HuggingFace-format base model (GGUF files cannot be trained directly), and conversational auto-invocation of MCP tools (today MCP tools are called manually from the MCP tab, not decided by the model mid-chat).
 
 Contributions on any of the above are very welcome — see
 [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Running the tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -q
+```
 
 ## Security
 

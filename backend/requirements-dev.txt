@@ -1,0 +1,3 @@
+# Dev/test only.
+pytest>=8
+httpx>=0.27  # TestClient needs httpx (already in requirements.txt, listed here too for clarity)

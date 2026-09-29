@@ -10,23 +10,30 @@ import { NavRail, type View } from "@/components/layout/NavRail";
 import { LockScreen } from "@/components/layout/LockScreen";
 import { BrainView } from "@/components/views/BrainView";
 import { TrainingView } from "@/components/views/TrainingView";
+import { ModelsView } from "@/components/views/ModelsView";
+import { GoogleView } from "@/components/views/GoogleView";
+import { McpView } from "@/components/views/McpView";
 import { Toaster } from "@/components/ui/Toaster";
 import { toast } from "@/store/useToast";
 import { motion, AnimatePresence } from "motion/react";
 import { useAppStore } from "@/store/useAppStore";
 import { api, streamChat, getSessionToken, setUnauthorizedHandler, type Conversation, type Message } from "@/lib/api";
+import { api2 } from "@/lib/api2";
 
 export default function App() {
   const {
     activeConversationId, setActiveConversationId,
     messagesByConversation, setMessages, appendMessage, updateMessage, removeMessage,
     model, setModel, reasoningLevel, setReasoningLevel, searchMode, setSearchMode,
+    offlineMode, aiName, live, setLive, clearLive,
     streaming, setStreaming,
   } = useAppStore();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [autoLearnOpen, setAutoLearnOpen] = useState(false);
   const [view, setView] = useState<View>("chat");
+  const [skillId, setSkillId] = useState<string | null>(null);
+  const [skillName, setSkillName] = useState<string | null>(null);
   const [locked, setLocked] = useState<boolean | null>(null); // null = still checking
   const [offline, setOffline] = useState(!navigator.onLine);
   const abortRef = useRef<AbortController | null>(null);
@@ -99,48 +106,69 @@ export default function App() {
     return c.id;
   }
 
-  async function send(text: string, opts?: { parentId?: string | null; regenerateOf?: string | null; skipUserAppend?: boolean }) {
+  async function send(text: string, opts?: { parentId?: string | null; regenerateOf?: string | null; editOf?: string | null; skipUserAppend?: boolean }) {
     const cid = await ensureConversation();
-    const assistantId = "pending-" + Date.now();
     setStreaming(true);
     abortRef.current = new AbortController();
     let accumulated = "";
+    let assistantId = "pending-" + Date.now();
 
+    // The user's own message must land in the list immediately -- otherwise, until the
+    // server echoes it back over the stream, the empty assistant bubble appears ABOVE it.
+    const tempUserId = "temp-user-" + Date.now();
+    if (!opts?.skipUserAppend) {
+      appendMessage(cid, {
+        id: tempUserId, conversation_id: cid, parent_id: opts?.parentId ?? null,
+        role: "user", content: text, created_at: Date.now() / 1000,
+      });
+    }
     appendMessage(cid, {
       id: assistantId, conversation_id: cid, parent_id: opts?.parentId ?? null,
-      role: "assistant", content: "", reasoning_level: reasoningLevel, model, created_at: Date.now() / 1000,
+      role: "assistant", content: "", reasoning_level: reasoningLevel, model, created_at: Date.now() / 1000 + 0.001,
     });
 
     try {
       await streamChat(
         {
           conversation_id: cid, message: text, parent_id: opts?.parentId ?? null,
-          model, reasoning_level: reasoningLevel, search_mode: searchMode,
-          regenerate_of: opts?.regenerateOf ?? null,
+          model, reasoning_level: reasoningLevel, search_mode: searchMode, offline: offlineMode,
+          tz_offset_min: new Date().getTimezoneOffset(), skill_id: opts?.skipUserAppend ? undefined : skillId,
+          regenerate_of: opts?.regenerateOf ?? null, edit_of: opts?.editOf ?? null,
         },
         {
           onUserMessage: (m) => {
-            if (!opts?.skipUserAppend) {
-              appendMessage(cid, {
-                id: m.id, conversation_id: cid, parent_id: opts?.parentId ?? null,
-                role: "user", content: m.content, created_at: Date.now() / 1000,
-              });
-            }
+            if (!opts?.skipUserAppend) updateMessage(cid, tempUserId, { id: m.id });
           },
-          onSources: (s) => updateMessage(cid, assistantId, { sources: s.sources }),
+          onStatus: (s) => setLive(assistantId, (l) => ({ ...l, stages: [...l.stages, s] })),
+          onThinkingDelta: (t) => setLive(assistantId, (l) => ({ ...l, thinking: l.thinking + t })),
+          onSources: (s) => updateMessage(cid, assistantId, { sources: s.sources, confidence: s.confidence ?? null }),
           onDelta: (delta) => {
             accumulated += delta;
             updateMessage(cid, assistantId, { content: accumulated });
           },
-          onDone: (d) => updateMessage(cid, assistantId, {
-            id: d.id, content: d.content, thinking: d.thinking, sources: d.sources,
-          }),
-          onError: (message) => { updateMessage(cid, assistantId, { content: `⚠️ ${message}` }); toast.error("Model server not reachable"); },
+          onTitle: (title) => setConversations((prev) => prev.map((c) => (c.id === cid ? { ...c, title } : c))),
+          onMemorySaved: (m) => toast.info(m.kind === "research" ? m.content : `Remembered: ${m.content}`),
+          onDone: (d) => {
+            updateMessage(cid, assistantId, {
+              id: d.id, content: d.content, thinking: d.thinking, sources: d.sources,
+              confidence: d.confidence ?? null, action: d.action ?? null,
+            });
+            clearLive(assistantId);
+          },
+          onError: (message) => {
+            updateMessage(cid, assistantId, { content: accumulated || `⚠️ ${message}` });
+            clearLive(assistantId);
+            toast.error(message.length > 80 ? "Something went wrong generating a reply" : message);
+          },
         },
         abortRef.current.signal,
       );
-    } catch (e) {
-      // aborted or network error -- leave partial content in place
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        updateMessage(cid, assistantId, { content: accumulated || "⚠️ Connection to the backend was lost." });
+        toast.error("Connection lost");
+      }
+      clearLive(assistantId);
     } finally {
       setStreaming(false);
       refreshConversations();
@@ -161,7 +189,7 @@ export default function App() {
     const priorUser = [...list.slice(0, idx)].reverse().find((x) => x.role === "user");
     if (!priorUser) return;
     removeMessage(activeConversationId, m.id);
-    send(priorUser.content, { parentId: priorUser.id, regenerateOf: priorUser.id, skipUserAppend: true });
+    send(priorUser.content, { parentId: priorUser.parent_id ?? null, regenerateOf: priorUser.id, skipUserAppend: true });
   }
 
   function fork(m: Message) {
@@ -179,7 +207,40 @@ export default function App() {
   function editResend(m: Message, newText: string) {
     if (!activeConversationId) return;
     removeMessage(activeConversationId, m.id);
-    send(newText, { parentId: m.parent_id, skipUserAppend: false });
+    send(newText, { parentId: m.parent_id, editOf: m.id, skipUserAppend: false });
+  }
+
+  function speak(m: Message) {
+    import("@/lib/voice").then(({ speak, stopSpeaking }) => { stopSpeaking(); speak(m.content, "browser"); });
+  }
+
+  async function decideAction(m: Message, grant: "once" | "chat" | "always" | "deny", params: Record<string, any>) {
+    if (!activeConversationId || !m.action) return;
+    if (grant === "deny") {
+      await api2.setActionStatus(m.id, "denied");
+      updateMessage(activeConversationId, m.id, { action: { ...m.action, status: "denied" } });
+      return;
+    }
+    try {
+      const { result } = await api2.googleExecute(m.action.action, params, grant, activeConversationId);
+      const text = await formatActionResult(m.action.action, result);
+      await api2.setActionStatus(m.id, "done", undefined, text);
+      updateMessage(activeConversationId, m.id, { content: text, action: { ...m.action, status: "done", params } });
+    } catch (e: any) {
+      await api2.setActionStatus(m.id, "failed", e.message);
+      updateMessage(activeConversationId, m.id, { action: { ...m.action, status: "failed", note: e.message } });
+      toast.error(e.message);
+    }
+  }
+
+  async function formatActionResult(action: string, result: any): Promise<string> {
+    // Small, local formatter mirroring the backend's actions.format_result, for results approved client-side.
+    if (action === "meet.create" || action === "meet.invite") return `✅ Meeting **${result.summary}** is set for ${result.start}.` + (result.meet_link ? `\n\nMeet link: [${result.meet_link}](${result.meet_link})` : "");
+    if (action === "sheets.create") return `✅ Created your sheet: [${result.url}](${result.url})`;
+    if (action === "slides.create") return `✅ Created your presentation: [${result.url}](${result.url})`;
+    if (action === "gmail.send") return "✅ Email sent.";
+    if (action === "gmail.draft") return "✅ Draft saved in your Gmail drafts.";
+    return "✅ Done.";
   }
 
   const activeTitle = conversations.find((c) => c.id === activeConversationId)?.title || "New chat";
@@ -192,6 +253,9 @@ export default function App() {
       <NavRail view={view} onChange={setView} />
       {view === "brain" && <BrainView onOpenAutoLearn={() => setAutoLearnOpen(true)} />}
       {view === "training" && <TrainingView />}
+      {view === "models" && <ModelsView />}
+      {view === "google" && <GoogleView />}
+      {view === "mcp" && <McpView />}
       {view === "chat" && <Sidebar
         conversations={conversations}
         onNew={newConversation}
@@ -224,6 +288,8 @@ export default function App() {
                 onFork={fork}
                 onDelete={del}
                 onEditResend={editResend}
+                onSpeak={speak}
+                onDecideAction={decideAction}
               />
             ))}
             {streaming && messages[messages.length - 1]?.role === "user" && (
@@ -241,6 +307,11 @@ export default function App() {
             model={model} setModel={setModel}
             reasoningLevel={reasoningLevel} setReasoningLevel={setReasoningLevel}
             searchMode={searchMode} setSearchMode={setSearchMode}
+            offline={offlineMode}
+            aiName={aiName}
+            skillId={skillId}
+            skillName={skillName}
+            onSkillChange={(id, name) => { setSkillId(id); setSkillName(name); }}
           />
         </div>
       </div>}

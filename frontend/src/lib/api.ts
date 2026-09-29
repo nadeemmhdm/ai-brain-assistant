@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+export const BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 // --- session token (app-lock) -------------------------------------------
 let sessionToken: string | null = sessionStorage.getItem("session_token");
@@ -12,7 +12,7 @@ export function getSessionToken() { return sessionToken; }
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
 
-async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+export async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers || {});
   if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
   const res = await fetch(url, { ...init, headers });
@@ -20,13 +20,13 @@ async function authFetch(url: string, init: RequestInit = {}): Promise<Response>
   return res;
 }
 
-async function jAuth(res: Response): Promise<any> {
+export async function jAuth(res: Response): Promise<any> {
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.detail || `${res.status} ${res.statusText}`);
   return body;
 }
 
-async function j<T>(res: Response): Promise<T> {
+export async function j<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -45,10 +45,20 @@ export interface Message {
   model?: string;
   reasoning_level?: string;
   created_at: number;
+  action?: ActionProposal | null;
+  confidence?: Confidence | null;
 }
+
+export interface Confidence { label: "high" | "medium" | "low"; sources: number; domains: number; best_tier?: string | null; from_memory?: boolean; flagged?: string[] }
+export interface ActionProposal {
+  action: string; label: string; risk: "read" | "write" | "external" | "destructive";
+  params: Record<string, any>; status: "pending" | "approved" | "denied" | "done" | "failed"; note?: string | null;
+}
+export type SearchMode = "off" | "quick" | "deep";
 
 export interface Source {
   id: string;
+  index?: number;
   url: string;
   title: string;
   trust_tier: "A" | "B" | "C" | "D";
@@ -141,10 +151,13 @@ export const api = {
 
 export interface ChatStreamHandlers {
   onUserMessage?: (m: { id: string; content: string }) => void;
-  onStatus?: (s: { stage: string }) => void;
-  onSources?: (s: { sources: Source[] }) => void;
+  onStatus?: (s: { stage: string; detail?: string; done?: number; total?: number }) => void;
+  onSources?: (s: { sources: Source[]; confidence?: Confidence | null }) => void;
   onDelta?: (text: string) => void;
-  onDone?: (m: { id: string; content: string; thinking?: string; sources: Source[] }) => void;
+  onThinkingDelta?: (text: string) => void;
+  onTitle?: (title: string) => void;
+  onMemorySaved?: (m: { content: string; kind?: string }) => void;
+  onDone?: (m: { id: string; content: string; thinking?: string | null; sources: Source[]; confidence?: Confidence | null; action?: ActionProposal | null }) => void;
   onError?: (message: string) => void;
 }
 
@@ -155,8 +168,13 @@ export async function streamChat(
     parent_id?: string | null;
     model: ModelChoice;
     reasoning_level: ReasoningLevel;
-    search_mode: boolean;
+    search_mode: SearchMode;
+    offline?: boolean;
+    voice?: boolean;
+    tz_offset_min?: number;
     regenerate_of?: string | null;
+    edit_of?: string | null;
+    skill_id?: string | null;
   },
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
@@ -190,6 +208,9 @@ export async function streamChat(
         case "status": handlers.onStatus?.(data); break;
         case "sources": handlers.onSources?.(data); break;
         case "delta": handlers.onDelta?.(data.text); break;
+        case "thinking_delta": handlers.onThinkingDelta?.(data.text); break;
+        case "title": handlers.onTitle?.(data.title); break;
+        case "memory_saved": handlers.onMemorySaved?.(data); break;
         case "done": handlers.onDone?.(data); break;
         case "error": handlers.onError?.(data.message); break;
       }

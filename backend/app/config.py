@@ -40,6 +40,22 @@ class Settings:
     })
     default_reasoning_level: str = "medium"
 
+    # -- model manager (load GGUFs from a folder, download from Hugging Face) --
+    models_dir: str = field(default_factory=lambda: _env("MODELS_DIR", r"C:\Users\nadee\PersonalAi\Models" if os.name == "nt" else os.path.expanduser("~/PersonalAi/Models")))
+    llama_server_path: str = field(default_factory=lambda: _env("LLAMA_SERVER_PATH", "llama-server"))
+    llama_threads: int = field(default_factory=lambda: int(_env("LLAMA_THREADS", str(max(1, (os.cpu_count() or 4) - 1)))))
+    llama_ctx: int = field(default_factory=lambda: int(_env("LLAMA_CTX", "8192")))
+    llama_gpu_layers: int = field(default_factory=lambda: int(_env("LLAMA_GPU_LAYERS", "0")))
+    hf_token: str = field(default_factory=lambda: _env("HF_TOKEN", ""))  # optional, backend-only
+
+    # -- voice (all optional; see requirements-voice.txt) -------------------
+    voice_dir: str = field(default_factory=lambda: _env("VOICE_DIR", os.path.join(os.path.dirname(__file__), "..", "data", "voice")))
+
+    # -- google (your own OAuth client; never sent to the browser) ---------
+    google_client_id: str = field(default_factory=lambda: _env("GOOGLE_CLIENT_ID", ""))
+    google_client_secret: str = field(default_factory=lambda: _env("GOOGLE_CLIENT_SECRET", ""))
+    google_redirect_uri: str = field(default_factory=lambda: _env("GOOGLE_REDIRECT_URI", "http://127.0.0.1:8000/api/google/callback"))
+
     # -- research / trust ------------------------------------------------
     request_delay_seconds: float = 1.0
     max_sources_per_question: int = 5
@@ -47,3 +63,4 @@ class Settings:
 
 settings = Settings()
 os.makedirs(settings.data_dir, exist_ok=True)
+os.makedirs(settings.voice_dir, exist_ok=True)

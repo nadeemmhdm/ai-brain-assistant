@@ -3,12 +3,14 @@ import { motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  Copy, RotateCcw, GitFork, Trash2, Pencil, ChevronDown, ChevronUp, Eye, Check,
+  Copy, RotateCcw, GitFork, Trash2, Pencil, ChevronDown, ChevronUp, Eye, Check, Volume2, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SourcesDrawer } from "./SourcesDrawer";
-import { ThinkingIndicator } from "./ThinkingIndicator";
+import { ThinkingPanel } from "./ThinkingPanel";
+import { ActionCard } from "./ActionCard";
+import { useAppStore } from "@/store/useAppStore";
 import type { Message } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,8 @@ export function MessageBubble({
   onFork,
   onDelete,
   onEditResend,
+  onSpeak,
+  onDecideAction,
 }: {
   message: Message;
   isStreaming?: boolean;
@@ -28,7 +32,11 @@ export function MessageBubble({
   onFork: (m: Message) => void;
   onDelete: (m: Message) => void;
   onEditResend: (m: Message, newText: string) => void;
+  onSpeak?: (m: Message) => void;
+  onDecideAction?: (m: Message, grant: "once" | "chat" | "always" | "deny", params: Record<string, any>) => Promise<void> | void;
 }) {
+  const live = useAppStore((st) => st.live[message.id]);
+  const aiName = useAppStore((st) => st.aiName);
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -50,6 +58,9 @@ export function MessageBubble({
       className={cn("group flex w-full gap-3 px-2 py-3", isUser ? "justify-end" : "justify-start")}
     >
       <div className={cn("max-w-[85%] sm:max-w-[70%]", isUser && "flex flex-col items-end")}>
+        {!isUser && isStreaming && message.content && live?.thinking && (
+          <div className="mb-1 text-[11px] text-muted italic">💭 {aiName} thought about this for {Math.max(1, Math.round((Date.now() - live.startedAt) / 1000))}s…</div>
+        )}
         {!isUser && message.thinking && (
           <div className="mb-1.5">
             <button
@@ -85,15 +96,30 @@ export function MessageBubble({
             )}
           >
             {isStreaming && !message.content ? (
-              <ThinkingIndicator label={message.reasoning_level === "off" ? "Generating" : "Thinking"} />
+              <ThinkingPanel live={live} name={aiName} />
             ) : (
               <div className="prose-chat">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 hover:opacity-80 break-all">{children}</a>
+                  ),
+                }}>{message.content}</ReactMarkdown>
               </div>
             )}
           </div>
         )}
 
+        {!isUser && message.confidence && (
+          <span title={`${message.confidence.sources} source(s) from ${message.confidence.domains} site(s)`}
+            className={cn("mt-1.5 mr-2 inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 border",
+              message.confidence.label === "high" ? "text-emerald-500 border-emerald-500/40"
+              : message.confidence.label === "medium" ? "text-amber-500 border-amber-500/40" : "text-red-400 border-red-400/40")}>
+            <ShieldCheck className="h-3 w-3" /> {message.confidence.label} confidence
+          </span>
+        )}
+        {!isUser && message.action && onDecideAction && (
+          <ActionCard action={message.action} onDecide={(g, p) => onDecideAction(message, g, p)} />
+        )}
         {!isUser && message.sources && message.sources.length > 0 && (
           <button
             onClick={() => setShowSources(true)}
@@ -110,6 +136,11 @@ export function MessageBubble({
           <IconBtn title="Copy" onClick={copy}>
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
           </IconBtn>
+          {!isUser && onSpeak && (
+            <IconBtn title="Read aloud" onClick={() => onSpeak(message)}>
+              <Volume2 className="h-3.5 w-3.5" />
+            </IconBtn>
+          )}
           {!isUser && (
             <IconBtn title="Regenerate" onClick={() => onRegenerate(message)}>
               <RotateCcw className="h-3.5 w-3.5" />

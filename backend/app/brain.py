@@ -6,6 +6,7 @@ installed locally; if not, falls back to a dependency-free hashed
 bag-of-words vector so the whole system still works with zero extra
 downloads. Nothing is ever sent to an external embedding API.
 """
+import zlib
 import numpy as np
 from typing import Optional
 from . import db
@@ -26,17 +27,59 @@ def _get_model():
         _model = None
     return _model
 
+def embedding_signature() -> str:
+    """Identifies the embedding scheme. If it changes (e.g. you install
+    sentence-transformers), stored vectors are re-computed on startup so
+    old and new vectors are never compared with each other."""
+    return "st-minilm-v1" if _get_model() is not None else f"hash-v2-{_EMBED_DIM}"
+
+def _hash_embed(text: str) -> np.ndarray:
+    # NOTE: zlib.crc32 is stable across processes/restarts. (Python's
+    # built-in hash() is randomized per process, which would silently
+    # corrupt any vectors saved to disk.)
+    vec = np.zeros(_EMBED_DIM, dtype=np.float32)
+    for tok in _tokens(text):
+        vec[zlib.crc32(tok.encode("utf-8")) % _EMBED_DIM] += 1.0
+    norm = np.linalg.norm(vec)
+    return vec / norm if norm > 0 else vec
+
+_STOP = set("a an the is are was were be been of to in on for and or it this that what how why who when where do does did with as by at from".split())
+def _tokens(text: str):
+    import re
+    return [t for t in re.findall(r"[a-z0-9]+", text.lower()) if t not in _STOP]
+
 def embed(text: str) -> np.ndarray:
     model = _get_model()
     if model is not None:
         vec = model.encode([text])[0]
         return vec.astype(np.float32)
-    # Fallback: hashed bag-of-words, no downloads required.
-    vec = np.zeros(_EMBED_DIM, dtype=np.float32)
-    for tok in text.lower().split():
-        vec[hash(tok) % _EMBED_DIM] += 1.0
-    norm = np.linalg.norm(vec)
-    return vec / norm if norm > 0 else vec
+    return _hash_embed(text)
+
+def embed_many(texts: list[str]) -> list[np.ndarray]:
+    model = _get_model()
+    if model is not None and texts:
+        return [v.astype(np.float32) for v in model.encode(texts)]
+    return [_hash_embed(t) for t in texts]
+
+def cosine(a: np.ndarray, b: np.ndarray) -> float:
+    return _cosine(a, b)
+
+def reembed_if_needed():
+    """Called at startup. Re-embeds stored knowledge/memories when the
+    embedding scheme changed since they were saved."""
+    sig = embedding_signature()
+    with db.get_conn() as conn:
+        row = conn.execute("SELECT value FROM kv_settings WHERE key='embed_sig'").fetchone()
+        if row and row["value"] == sig:
+            return 0
+        n = 0
+        for r in conn.execute("SELECT id, topic, subtopic, question, answer FROM knowledge").fetchall():
+            v = embed(f"{r['topic']} {r['subtopic'] or ''} {r['question']} {r['answer']}")
+            conn.execute("UPDATE knowledge SET embedding=? WHERE id=?", (v.tobytes(), r["id"])); n += 1
+        for r in conn.execute("SELECT id, content FROM memories").fetchall():
+            conn.execute("UPDATE memories SET embedding=? WHERE id=?", (embed(r["content"]).tobytes(), r["id"])); n += 1
+        conn.execute("INSERT INTO kv_settings (key,value) VALUES ('embed_sig',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (sig,))
+    return n
 
 def _cosine(a: np.ndarray, b: np.ndarray) -> float:
     denom = (np.linalg.norm(a) * np.linalg.norm(b))
@@ -81,6 +124,7 @@ def search_knowledge(query: str, topic: Optional[str] = None, top_k: int = 5) ->
             "verification_status": row["verification_status"],
             "conflict": db.loads(row["conflict_json"]),
             "score": round(score, 4),
+            "updated_at": row["updated_at"],
         })
     return out
 
@@ -96,5 +140,6 @@ def brain_stats() -> dict:
         "total_topics": topics, "total_knowledge_items": items, "verified_knowledge": verified,
         "conflicting_knowledge": conflicts, "total_sources": sources,
         "embedding_backend": "sentence-transformers" if _get_model() else "hashed-fallback",
+        "embedding_signature": embedding_signature(),
         "last_learning_session": dict(last_session) if last_session else None,
     }

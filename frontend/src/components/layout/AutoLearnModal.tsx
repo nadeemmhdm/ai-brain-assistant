@@ -2,30 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import { GraduationCap, Pause, Play, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/Modal";
+import { toast } from "@/store/useToast";
 import { api } from "@/lib/api";
 
 export function AutoLearnModal({ onClose }: { onClose: () => void }) {
   const [topic, setTopic] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<any>(null);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const poll = useRef<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) return;
+    let misses = 0;
     poll.current = window.setInterval(async () => {
-      const s = await api.learnStatus(sessionId).catch(() => null);
-      if (s) setStatus(s);
-      if (s && ["completed", "cancelled", "error"].includes(s.status) && poll.current) {
-        clearInterval(poll.current);
+      try {
+        const s = await api.learnStatus(sessionId);
+        misses = 0; setStatus(s);
+        if (["completed", "cancelled", "error"].includes(s.status) && poll.current) clearInterval(poll.current);
+      } catch {
+        if (++misses >= 3 && poll.current) { clearInterval(poll.current); setError("Lost contact with the learning session. Is the backend still running?"); }
       }
     }, 1000);
     return () => { if (poll.current) clearInterval(poll.current); };
   }, [sessionId]);
 
   const start = async () => {
-    if (!topic.trim()) return;
-    const { session_id } = await api.startLearn(topic.trim());
-    setSessionId(session_id);
+    if (!topic.trim() || starting) return;
+    setStarting(true); setError(null);
+    try {
+      const { session_id } = await api.startLearn(topic.trim());
+      setSessionId(session_id);
+    } catch (e: any) {
+      const msg = e.message || "Couldn't start learning.";
+      setError(msg); toast.error(msg);
+    } finally {
+      setStarting(false);
+    }
   };
 
   return (
@@ -44,7 +58,10 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
               placeholder="e.g. Cybersecurity"
               className="w-full rounded-md bg-surface-2 border border-border px-3 py-2 text-sm mb-3 focus:outline-none focus:border-accent"
             />
-            <Button onClick={start} disabled={!topic.trim()} className="w-full">Start learning</Button>
+            <Button onClick={start} disabled={!topic.trim() || starting} className="w-full">
+              {starting ? "Starting…" : "Start learning"}
+            </Button>
+            {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
           </>
         ) : (
           <div className="space-y-3">
@@ -52,7 +69,8 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
             <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden">
               <div className="h-full bg-accent transition-all" style={{ width: `${status?.progress_pct ?? 0}%` }} />
             </div>
-            <p className="text-xs text-muted">{status?.current_task}</p>
+            <p className={`text-xs ${status?.status === "error" ? "text-red-500" : "text-muted"}`}>{status?.current_task}</p>
+            {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <MiniStat label="Sources" value={status?.sources_found} />
               <MiniStat label="Pages" value={status?.pages_processed} />

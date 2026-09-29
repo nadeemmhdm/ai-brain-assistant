@@ -84,6 +84,65 @@ CREATE TABLE IF NOT EXISTS search_cache (
     fetched_at REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    content TEXT NOT NULL,             -- a user-approved fact/preference
+    embedding BLOB,
+    created_at REAL NOT NULL,
+    last_used_at REAL,
+    use_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS downloads (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,                -- model|voice
+    url TEXT NOT NULL,
+    dest TEXT NOT NULL,
+    status TEXT NOT NULL,              -- running|completed|failed|cancelled
+    bytes_done INTEGER NOT NULL DEFAULT 0,
+    bytes_total INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    started_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id TEXT PRIMARY KEY,
+    key TEXT,                          -- catalog key if installed from the trusted list, else NULL
+    name TEXT NOT NULL,
+    command TEXT NOT NULL,             -- npm package (starts with @) or a local executable
+    args_json TEXT,
+    trusted INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    instructions TEXT NOT NULL,        -- folded into the system prompt for one message when invoked
+    builtin INTEGER NOT NULL DEFAULT 0,
+    icon TEXT,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    scope TEXT NOT NULL,               -- chat | always   ("this time" is never stored)
+    conversation_id TEXT,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS autolearn_topics (
+    id TEXT PRIMARY KEY,
+    topic TEXT NOT NULL UNIQUE,
+    interval_hours INTEGER NOT NULL DEFAULT 168,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    last_run REAL,
+    last_status TEXT
+);
+
 CREATE TABLE IF NOT EXISTS datasets (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -128,6 +187,17 @@ def _connect():
 def init_db():
     with _connect() as conn:
         conn.executescript(SCHEMA)
+        # lightweight migrations for databases created by earlier versions
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()]
+        if "summary" not in cols:
+            conn.execute("ALTER TABLE conversations ADD COLUMN summary TEXT")
+        mcols = [r["name"] for r in conn.execute("PRAGMA table_info(messages)").fetchall()]
+        if "action_json" not in mcols:
+            conn.execute("ALTER TABLE messages ADD COLUMN action_json TEXT")
+        if "confidence_json" not in mcols:
+            conn.execute("ALTER TABLE messages ADD COLUMN confidence_json TEXT")
+        if "summary_msgs" not in cols:
+            conn.execute("ALTER TABLE conversations ADD COLUMN summary_msgs INTEGER NOT NULL DEFAULT 0")
 
 @contextmanager
 def get_conn():

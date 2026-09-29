@@ -60,6 +60,8 @@ async def stream_chat(
     which: str,
     messages: list[dict],
     reasoning_level: str,
+    temperature: Optional[float] = None,
+    max_tokens: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
     """Yields raw text deltas from the local model server (SSE passthrough)."""
     cfg = settings.reasoning_levels.get(reasoning_level, settings.reasoning_levels[settings.default_reasoning_level])
@@ -67,9 +69,12 @@ async def stream_chat(
     payload = {
         "model": _model_name(which),
         "messages": messages,
-        "temperature": cfg["temperature"],
-        "max_tokens": cfg["max_tokens"],
+        "temperature": cfg["temperature"] if temperature is None else min(temperature, cfg["temperature"]),
+        "max_tokens": max_tokens or cfg["max_tokens"],
         "stream": True,
+        "cache_prompt": True,   # llama.cpp reuses the shared prompt prefix -> much faster follow-ups
+        "top_k": 40,
+        "repeat_penalty": 1.1,
     }
     try:
         async with httpx.AsyncClient(timeout=None) as client:
@@ -108,3 +113,41 @@ async def complete(which: str, messages: list[dict], reasoning_level: str) -> st
             return ""
         chunks.append(delta)
     return "".join(chunks)
+
+
+class ThinkSplitter:
+    """Incrementally splits a token stream into ("thinking", text) and
+    ("answer", text) parts, correctly handling tags split across chunks."""
+    OPEN, CLOSE = "<thinking>", "</thinking>"
+
+    def __init__(self):
+        self.buf = ""
+        self.in_think = False
+
+    def feed(self, text: str) -> list[tuple[str, str]]:
+        self.buf += text
+        out: list[tuple[str, str]] = []
+        while True:
+            tag = self.CLOSE if self.in_think else self.OPEN
+            i = self.buf.find(tag)
+            if i >= 0:
+                seg = self.buf[:i]
+                if seg:
+                    out.append(("thinking" if self.in_think else "answer", seg))
+                self.buf = self.buf[i + len(tag):]
+                self.in_think = not self.in_think
+                continue
+            keep = 0
+            for k in range(min(len(tag) - 1, len(self.buf)), 0, -1):
+                if tag.startswith(self.buf[-k:]):
+                    keep = k
+                    break
+            emit = self.buf[: len(self.buf) - keep]
+            if emit:
+                out.append(("thinking" if self.in_think else "answer", emit))
+            self.buf = self.buf[len(self.buf) - keep:]
+            return out
+
+    def flush(self) -> list[tuple[str, str]]:
+        rest, self.buf = self.buf, ""
+        return [("thinking" if self.in_think else "answer", rest)] if rest else []

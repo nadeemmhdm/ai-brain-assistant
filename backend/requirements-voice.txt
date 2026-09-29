@@ -1,0 +1,7 @@
+# Optional: local (offline) voice. Without these the app uses the browser's
+# built-in voice features instead. Install, then download a speech model and
+# a voice once from Settings -> Voice (that is the only time internet is needed).
+#
+#   pip install -r requirements-voice.txt
+faster-whisper>=1.0      # speech-to-text
+piper-tts>=1.2           # text-to-speech (if it fails to install on your platform, use the browser voice)

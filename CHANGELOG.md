@@ -7,6 +7,27 @@ so breaking changes may still happen between minor versions).
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-09-29
+
+### Fixed
+- **Message ordering bug**: the assistant's (empty) reply could render above the user's own message until a refresh — the user's message is now appended optimistically before the request is sent, instead of waiting for the server's echo.
+- **Search mode fabricating answers**: when web search returned nothing useful, the model would still answer as if grounded, sometimes producing literal `[Name]`/`[Year]`-style placeholder text. Added a standing instruction never to output placeholder-style guesses, softened the grounding prompt so irrelevant search context is ignored instead of confusing the model, and skip search entirely for arithmetic/greetings that plainly don't need it.
+- **Silent DuckDuckGo failures**: search errors are now raised and surfaced to the user as a clear status notice instead of silently producing an empty, ungrounded answer. Switched to the actively maintained `ddgs` package (successor to `duckduckgo-search`) with a hardened HTML fallback.
+- **Auto Learn doing nothing on click**: the start button now shows a loading state and surfaces backend errors (e.g. a session already running, empty topic) instead of failing silently; the backend endpoint validates input and returns clear error messages.
+
+### Added
+- **Assistant identity**: default name **Nila**, friendly/professional persona, a set date of birth (2 Feb 2026) with an automatic birthday message, and deterministic answers to "who made you"/"your name"/"your age"/"your links" questions (never guesses, never names the underlying model or company) — developer credit and clickable GitHub/Instagram links.
+- **Onboarding**: first-run screen asking what to call the assistant and what it should call you.
+- **Voice**: offline speech-to-text (faster-whisper) and text-to-speech (Piper), downloaded once from Settings → Voice, with a full voice-to-voice conversation mode; falls back to the browser's built-in speech APIs when local voice isn't set up. A "Hey Nila" wake-phrase listener (tolerant of mis-hearings) can start a voice turn hands-free.
+- **Model manager**: import a `.gguf` you already have (in place or copied in), load/unload the main and agent roles, search and download models from Hugging Face (with an optional, encrypted access token for gated repos), and a live downloads panel.
+- **Google integration**: your own OAuth client (PKCE, tokens encrypted at rest) for Gmail (read/draft/send/trash), Google Meet (create/list/update/share/delete, with invite links), Sheets and Slides — every action requires explicit permission (**Allow this time / this chat / always / deny**) surfaced both inline in chat and in a dedicated Google tab.
+- **Smarter chat pipeline**: streamed `<thinking>` reasoning shown live and separately from the answer, rolling conversation summarization so long chats keep working, real conversation forking, auto-generated chat titles, a confidence badge on researched answers, and a check that flags numbers/years the sources don't actually support.
+- **Manual + automatic Brain training**: teach a fact directly, import a text file, and a watch-list of topics that re-research themselves on a schedule when the app is online and idle.
+- **Optional self-update**: checks GitHub releases and can fast-forward a git checkout to the latest tagged release on request (or automatically, if opted in).
+- Real MCP connector support: a stdio JSON-RPC client, a trusted starter catalog (filesystem, fetch, git, sequential-thinking — official `@modelcontextprotocol` servers, no extra credentials needed), install/start/stop, tool discovery, and a permission-gated manual tool-call UI. Custom servers can be added too, clearly marked as not pre-vetted.
+- **Skills**: reusable saved instructions (Summarize, Explain simply, Fix grammar, Translate, Brainstorm, Code review ship by default) pickable from the composer and applied to a single message; users can add/edit their own.
+- Answer links render as clickable text throughout (confirmed via the existing Markdown renderer).
+
 ## [0.2.0-beta.1] - 2026-09-28
 
 ### Added
@@ -47,6 +68,7 @@ roadmap" section for what's fully implemented versus marked Experimental.
   dev-server-only issues (no production runtime impact); `npm audit` now reports zero
   vulnerabilities.
 
-[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.4.0-beta.1...HEAD
+[0.4.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.2.0-beta.1...v0.4.0-beta.1
 [0.2.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.1.0-beta.1...v0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/releases/tag/v0.1.0-beta.1
