@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Boxes, Play, Square, FolderInput, Search, Download, KeyRound, Mic, Volume2, Loader2, Trash2, X, Check } from "lucide-react";
+import { Boxes, Play, Square, FolderInput, Search, Download, KeyRound, Mic, Volume2, Loader2, Trash2, X, Check, Languages } from "lucide-react";
 import { api2 } from "@/lib/api2";
 import { toast } from "@/store/useToast";
 import { AnimatedIcon } from "@/components/ui/AnimatedIcon";
@@ -17,15 +17,17 @@ export function ModelsView() {
   const [downloads, setDownloads] = useState<any[]>([]);
   const [hfSet, setHfSet] = useState(false); const [token, setToken] = useState("");
   const [voice, setVoice] = useState<any>(null); const [catalog, setCatalog] = useState<any[]>([]); const [voiceFilter, setVoiceFilter] = useState("en");
+  const [trStatus, setTrStatus] = useState<any>(null); const [trCatalog, setTrCatalog] = useState<any[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const poll = useRef<number | null>(null);
 
   const load = () => { api2.localModels().then(setLocal).catch(() => {}); api2.modelStatus().then(setStatus).catch(() => {}); };
   const loadDownloads = () => api2.downloads().then((d) => { setDownloads(d); if (d.some((x) => x.status === "running")) load(); }).catch(() => {});
   const loadVoice = () => api2.voiceStatus().then(setVoice).catch(() => {});
-  useEffect(() => { load(); loadDownloads(); loadVoice(); api2.hfTokenStatus().then((r) => setHfSet(r.set)).catch(() => {}); }, []);
+  const loadTranslate = () => api2.translateStatus().then(setTrStatus).catch(() => {});
+  useEffect(() => { load(); loadDownloads(); loadVoice(); loadTranslate(); api2.hfTokenStatus().then((r) => setHfSet(r.set)).catch(() => {}); }, []);
   useEffect(() => {
-    poll.current = window.setInterval(() => { loadDownloads(); loadVoice(); }, 1500);
+    poll.current = window.setInterval(() => { loadDownloads(); loadVoice(); loadTranslate(); }, 1500);
     return () => { if (poll.current) clearInterval(poll.current); };
   }, []);
 
@@ -171,6 +173,33 @@ export function ModelsView() {
             ))}
           </div>
           <DownloadList items={downloads.filter((d) => d.kind === "voice")} />
+        </Card>
+
+        <Card title="Translate (offline, powered by Argos Translate)">
+          <p className="text-xs text-muted mb-3">
+            Used by the <b>Translate</b> skill in the composer — say "to French: hello" and it calls this directly, no guessing from the chat model.
+            {trStatus && !trStatus.available && <> Needs <code>pip install -r backend/requirements-translate.txt</code>, then restart the backend.</>}
+          </p>
+          <div className="flex items-center gap-2 mb-2 text-sm"><Languages className="h-4 w-4 text-muted" />
+            <span className="text-muted">Installed pairs:</span>
+            <span>{trStatus?.installed?.length ? trStatus.installed.map((p: any) => `${p.from_name}→${p.to_name}`).join(", ") : "none yet"}</span>
+          </div>
+          <button disabled={!trStatus?.available || busy === "trcat"} onClick={() => act("trcat", async () => setTrCatalog(await api2.translateCatalog()))}
+            className="text-xs h-8 px-3 rounded-lg border border-border hover:border-accent disabled:opacity-40">
+            {busy === "trcat" ? "Loading…" : "Browse language pairs"}
+          </button>
+          {trCatalog && (
+            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+              {trCatalog.filter((p) => p.from_code === "en" || p.to_code === "en").map((p) => (
+                <div key={`${p.from_code}-${p.to_code}`} className="flex items-center gap-2 text-xs rounded-md border border-border px-2 py-1.5">
+                  <span className="flex-1">{p.from_name} → {p.to_name}</span>
+                  {p.installed ? <span className="text-emerald-500">installed</span> :
+                    <button onClick={() => act(`tr${p.from_code}${p.to_code}`, () => api2.translateInstall(p.from_code, p.to_code), "Downloading language pack…")}
+                      className="h-6 px-2 rounded border border-border hover:border-accent flex items-center gap-1"><Download className="h-3 w-3" /> Get</button>}
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </div>

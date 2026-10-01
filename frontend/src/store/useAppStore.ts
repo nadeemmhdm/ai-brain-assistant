@@ -48,7 +48,15 @@ interface AppState {
 
   streaming: boolean;
   setStreaming: (b: boolean) => void;
+
+  messageQueue: string[];              // waiting list -- messages typed while a reply is still generating
+  enqueueMessage: (text: string) => boolean;   // false if the queue is already full (max 5)
+  dequeueMessage: () => string | undefined;
+  removeQueuedMessage: (index: number) => void;
+  editQueuedMessage: (index: number, text: string) => void;
+  clearQueue: () => void;
 }
+export const MAX_QUEUED_MESSAGES = 5;
 
 const savedTheme = (ls("theme", "dark") as "dark" | "light");
 document.documentElement.setAttribute("data-theme", savedTheme);
@@ -94,4 +102,27 @@ export const useAppStore = create<AppState>((set) => ({
 
   streaming: false,
   setStreaming: (b) => set({ streaming: b }),
+
+  messageQueue: [],
+  enqueueMessage: (text) => {
+    let ok = false;
+    set((s) => {
+      if (s.messageQueue.length >= MAX_QUEUED_MESSAGES) return s;
+      ok = true;
+      return { messageQueue: [...s.messageQueue, text] };
+    });
+    return ok;
+  },
+  dequeueMessage: () => {
+    let next: string | undefined;
+    set((s) => {
+      if (!s.messageQueue.length) return s;
+      next = s.messageQueue[0];
+      return { messageQueue: s.messageQueue.slice(1) };
+    });
+    return next;
+  },
+  removeQueuedMessage: (index) => set((s) => ({ messageQueue: s.messageQueue.filter((_, i) => i !== index) })),
+  editQueuedMessage: (index, text) => set((s) => ({ messageQueue: s.messageQueue.map((m, i) => (i === index ? text : m)) })),
+  clearQueue: () => set({ messageQueue: [] }),
 }));

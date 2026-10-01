@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff } from "lucide-react";
+import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff, Clock } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { SkillPicker } from "./SkillPicker";
@@ -77,7 +77,7 @@ function Dropdown<T extends string>({
 }
 
 export function ChatComposer({
-  onSend, disabled, streaming, onStop,
+  onSend, disabled, streaming, onStop, queueFull,
   model, setModel, reasoningLevel, setReasoningLevel, searchMode, setSearchMode, offline, onVoice, aiName,
   skillId, skillName, onSkillChange,
   placeholder,
@@ -98,6 +98,7 @@ export function ChatComposer({
   setReasoningLevel: (r: ReasoningLevel) => void;
   searchMode: SearchMode;
   setSearchMode: (m: SearchMode) => void;
+  queueFull?: boolean;
   placeholder?: string;
 }) {
   const [message, setMessage] = useState("");
@@ -111,12 +112,12 @@ export function ChatComposer({
   }, [message]);
 
   const send = useCallback(() => {
-    if (!message.trim() || disabled) return;
+    if (!message.trim() || disabled || (streaming && queueFull)) return;
     onSend(message);
     onSkillChange?.(null, null);
     setMessage("");
     if (ref.current) ref.current.style.height = "auto";
-  }, [message, disabled, onSend]);
+  }, [message, disabled, streaming, queueFull, onSend]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -133,9 +134,10 @@ export function ChatComposer({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={placeholder || (skillName ? `${skillName}… (message ${aiName || "Nila"})` : `Message ${aiName || "Nila"}…`)}
+          placeholder={placeholder || (skillName ? `${skillName}… (message ${aiName || "Nila"})` : streaming ? "Type ahead — it'll send once the reply is done…" : `Message ${aiName || "Nila"}…`)}
           rows={1}
-          className="flex-1 min-h-[56px] max-h-[160px] w-full p-4 resize-none bg-transparent text-ink placeholder:text-muted text-sm sm:text-base focus:outline-none custom-scrollbar"
+          disabled={disabled}
+          className="flex-1 min-h-[56px] max-h-[160px] w-full p-4 resize-none bg-transparent text-ink placeholder:text-muted text-sm sm:text-base focus:outline-none custom-scrollbar disabled:opacity-60"
         />
         <div className="flex items-center gap-1.5 justify-between w-full px-3 pb-2.5 flex-wrap">
           <div className="flex items-center gap-1.5">
@@ -176,15 +178,19 @@ export function ChatComposer({
                 <Mic className="h-[18px] w-[18px]" />
               </motion.button>
             )}
-            {streaming ? (
+            {streaming && (
               <Button size="icon" variant="destructive" onClick={onStop} title="Stop generating">
                 <Square className="h-4 w-4" />
               </Button>
-            ) : (
-              <Button size="icon" onClick={send} disabled={!message.trim() || disabled} title="Send">
-                <ArrowUp className="h-4 w-4" />
-              </Button>
             )}
+            <Button
+              size="icon"
+              onClick={send}
+              disabled={!message.trim() || disabled || (streaming && queueFull)}
+              title={streaming ? (queueFull ? "Waiting list is full (5/5)" : "Add to waiting list") : "Send"}
+            >
+              {streaming ? <Clock className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </div>

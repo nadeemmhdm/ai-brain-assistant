@@ -14,6 +14,10 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
   const poll = useRef<number | null>(null);
 
   useEffect(() => {
+    api.learnActive().then((active) => { if (active) { setSessionId(active.session_id); setStatus(active); } }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!sessionId) return;
     let misses = 0;
     poll.current = window.setInterval(async () => {

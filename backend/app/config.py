@@ -33,10 +33,10 @@ class Settings:
     # "off" skips the thinking step entirely (fastest, no <thinking> block).
     reasoning_levels: dict = field(default_factory=lambda: {
         "off":    {"temperature": 0.6, "max_tokens": 512,  "think": False, "think_budget": 0},
-        "low":    {"temperature": 0.5, "max_tokens": 768,  "think": True,  "think_budget": 120},
-        "medium": {"temperature": 0.5, "max_tokens": 1024, "think": True,  "think_budget": 300},
-        "high":   {"temperature": 0.4, "max_tokens": 1536, "think": True,  "think_budget": 600},
-        "max":    {"temperature": 0.3, "max_tokens": 2048, "think": True,  "think_budget": 1200},
+        "low":    {"temperature": 0.5, "max_tokens": 900,  "think": True,  "think_budget": 120},
+        "medium": {"temperature": 0.5, "max_tokens": 1300, "think": True,  "think_budget": 300},
+        "high":   {"temperature": 0.4, "max_tokens": 2200, "think": True,  "think_budget": 550},
+        "max":    {"temperature": 0.3, "max_tokens": 3200, "think": True,  "think_budget": 900},
     })
     default_reasoning_level: str = "medium"
 
@@ -44,7 +44,7 @@ class Settings:
     models_dir: str = field(default_factory=lambda: _env("MODELS_DIR", r"C:\Users\nadee\PersonalAi\Models" if os.name == "nt" else os.path.expanduser("~/PersonalAi/Models")))
     llama_server_path: str = field(default_factory=lambda: _env("LLAMA_SERVER_PATH", "llama-server"))
     llama_threads: int = field(default_factory=lambda: int(_env("LLAMA_THREADS", str(max(1, (os.cpu_count() or 4) - 1)))))
-    llama_ctx: int = field(default_factory=lambda: int(_env("LLAMA_CTX", "8192")))
+    llama_ctx: int = field(default_factory=lambda: int(_env("LLAMA_CTX", "4096")))
     llama_gpu_layers: int = field(default_factory=lambda: int(_env("LLAMA_GPU_LAYERS", "0")))
     hf_token: str = field(default_factory=lambda: _env("HF_TOKEN", ""))  # optional, backend-only
 

@@ -20,7 +20,7 @@ from app import auth, brain, teach, llm_client, model_manager, version, updater,
 from app.routers import (
     chat, learn_router, brain_router, settings_router, models_router, mcp_router,
     auth_router, dataset_router, training_router, memory_router, voice_router,
-    google_router, updates_router, skills_router,
+    google_router, updates_router, skills_router, translate_router,
 )
 
 async def _is_online() -> bool:
@@ -73,7 +73,8 @@ app.include_router(google_router.public)
 _protected = [Depends(auth.require_auth)]
 for r in (chat.router, learn_router.router, brain_router.router, settings_router.router, models_router.router,
           mcp_router.router, dataset_router.router, training_router.router, memory_router.router,
-          voice_router.router, google_router.router, updates_router.router, skills_router.router):
+          voice_router.router, google_router.router, updates_router.router, skills_router.router,
+          translate_router.router):
     app.include_router(r, dependencies=_protected)
 
 @app.get("/api/health")

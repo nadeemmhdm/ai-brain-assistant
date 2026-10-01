@@ -1,0 +1,10 @@
+# Optional: real offline translation for the "Translate" skill, powered by
+# Argos Translate (the open-source engine LibreTranslate is also built on).
+# Without this, the Translate skill tells you how to install it instead of
+# guessing a translation with the chat model.
+#
+#   pip install -r requirements-translate.txt
+#
+# Then install a language pair once (Models tab -> Translate) -- after
+# that, translation works fully offline.
+argostranslate>=1.9

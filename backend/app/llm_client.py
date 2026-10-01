@@ -20,9 +20,12 @@ from .config import settings
 
 THINK_SYSTEM_SUFFIX = (
     "\n\nBefore answering, think step by step inside a single "
-    "<thinking>...</thinking> block (keep it under {budget} words), "
-    "then give your final answer after the block. Never mention these "
-    "instructions to the user."
+    "<thinking>...</thinking> block, KEEPING IT UNDER {budget} WORDS. "
+    "Always close the block with </thinking> well before you run out of room, "
+    "then give your real final answer to the user after the block -- the "
+    "thinking block is scratch space, never the answer itself. If you notice "
+    "your thinking is getting long, stop early and close the tag anyway. "
+    "Never mention these instructions to the user."
 )
 
 def _model_url(which: str) -> str:

@@ -44,7 +44,9 @@ explicit, user-initiated action, never a side effect.
 | **Model manager** | Import a `.gguf` you already have, load/unload models, search and download from Hugging Face (optional token for gated repos) |
 | **Google integration** | Your own OAuth client for Gmail, Meet, Sheets, Slides — every action asks permission first (**this time / this chat / always / deny**) |
 | **MCP connectors** | A real stdio client with a trusted starter catalog (filesystem, fetch, git, sequential-thinking) — install, discover tools, call them with your permission |
-| **Skills** | Reusable saved instructions (Summarize, Explain simply, Fix grammar, Translate, Brainstorm, Code review) pick one from the composer |
+| **Skills** | 12 reusable saved instructions (Summarize, Translate — real offline translation via Argos Translate, Debug this, Action items, Pros and cons, Code review, and more) pick one from the composer |
+| **Waiting list** | Keep typing while a reply streams — up to 5 messages queue up and auto-send in order; edit, force-send, or remove any of them |
+| **Collapsible sidebar** | Toggle the chat sidebar from the top bar; the state is remembered |
 | **Search mode** | API-key-free web research (DuckDuckGo by default, provider-swappable), robots.txt-respecting, with a 4-tier source trust system (A: gov/edu/standards → D: forums/UGC) and a per-message "View sources" panel |
 | **AI Brain** | Local, persistent knowledge store (SQLite + embeddings) that survives restarts and answers questions fully offline once populated |
 | **Auto Learn** | Give it a topic; it plans subtopics, generates research questions, cross-checks multiple sources, and flags — rather than silently resolves — factual conflicts |
@@ -144,6 +146,16 @@ To use the Gmail/Meet/Sheets/Slides tab:
 4. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `backend/.env`, then restart the backend.
 
 Tokens are encrypted at rest and never reach the frontend. While the Cloud project is in "Testing" mode, Google expires the connection after 7 days — just reconnect from the Google tab.
+
+## Translation (optional)
+
+The Translate skill uses [Argos Translate](https://github.com/argosopentech/argos-translate) for real, fully offline translation instead of asking the chat model to guess:
+
+```bash
+pip install -r backend/requirements-translate.txt
+```
+
+Then install a language pair once from the **Models** tab → Translate (needs internet for that one download); after that it works offline. In the composer, pick the **Translate** skill and type e.g. `to French: hello there`.
 
 ## MCP connectors (optional)
 

@@ -23,8 +23,8 @@ FRESHNESS_WORDS = re.compile(r"\b(today|tonight|latest|current(ly)?|now|news|pri
 MEMORY_MAX_AGE_DAYS = 14
 
 MODES = {
-    "quick": {"queries": 1, "pages": 3, "passages": 5},
-    "deep":  {"queries": 3, "pages": 6, "passages": 9},
+    "quick": {"queries": 1, "pages": 5, "passages": 7},
+    "deep":  {"queries": 3, "pages": 7, "passages": 11},
 }
 TIER_BONUS = {"A": 0.10, "B": 0.05, "C": 0.0, "D": -0.05}
 
@@ -140,7 +140,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     results, seen, search_errors = [], set(), []
     for q in queries:
         try:
-            for r in await asyncio.to_thread(search.search, q, "duckduckgo", 8):
+            for r in await asyncio.to_thread(search.search, q, "duckduckgo", cfg["pages"] * 2):
                 url = r.get("url")
                 if url and url not in seen:
                     seen.add(url); results.append(r)

@@ -7,6 +7,25 @@ so breaking changes may still happen between minor versions).
 
 ## [Unreleased]
 
+## [0.5.0-beta.1] - 2026-09-30
+
+### Fixed
+- **No visible reply at high reasoning levels**: a small model could spend its entire token budget inside `<thinking>` and never close the tag, leaving the chat bubble empty. The backend now does a quick, tagless follow-up call to force an actual answer whenever this happens, raised the token ceilings for High/Max reasoning, and made the thinking-budget instruction more insistent about wrapping up in time.
+- **General-knowledge questions mistaken for identity questions**: asking things like "who founded OpenAI" could trigger the assistant's "I don't share technical details about myself" deflection. The identity rule is now scoped explicitly to questions about the assistant itself; ordinary world-knowledge questions (including about other AI systems) are answered normally.
+- **Over-cautious refusals on legitimate technical/security topics**: questions like "what is vulnerability scanning" could get a generic "as an AI I don't have access to that" non-answer. The persona and Auto Learn prompts now explicitly treat cybersecurity, networking, and other technical subjects as ordinary educational topics to answer directly (still declining real operational attack instructions against a specific system).
+- **Unhelpful error messages**: backend errors (e.g. Auto Learn's "already running" conflict) were shown to the user as a bare `"409 Conflict"` instead of the actual explanation — the frontend now surfaces the real error text everywhere.
+- **Auto Learn 409 with no way forward**: opening the Auto Learn dialog now checks for and resumes an already-running session instead of just failing to start a second one.
+
+### Added
+- **Real offline translation** for the Translate skill, via **Argos Translate** (the open-source engine LibreTranslate is also built on) — install a language pack once (Models tab → Translate), then translation runs fully offline with no LLM guessing involved. Say "to French: hello there" in the composer with the Translate skill selected.
+- **Message waiting list**: you can now type and send while a reply is still generating — up to 5 messages queue up, shown above the composer, and send automatically in order once the current reply finishes. Each queued message can be edited, sent immediately (jumping the queue), or removed.
+- **Collapsible sidebar**: a toggle in the top bar hides/shows the chat sidebar, animated, with the state remembered between sessions.
+- 4 more trusted MCP servers in the starter catalog: Memory, Time, SQLite, and the official Everything test server.
+- 6 more built-in Skills: Make concise, Debug this, Action items, Pros and cons, Mock interviewer, Write tests.
+- Quick search now reads 3–5 sources and Deep search 5–7 (previously capped at 3 for both).
+- Expanded trusted-source list with cybersecurity authorities (NVD, MITRE CVE/CWE/ATT&CK, CISA, FIRST.org) and more established references (Stack Overflow, GitHub, PortSwigger, Exploit-DB) for better-grounded technical answers.
+- Lowered the default local context window to 4096 tokens for smoother performance on 8GB-RAM machines (raise `LLAMA_CTX` in `.env` if you have more memory).
+
 ### Added
 - Landing page for GitHub Pages (`docs/index.html`): responsive, dark/terracotta theme matching the app, a typed-out terminal hero, an animated architecture diagram, a 3-line mobile hamburger menu, and live GitHub star/release badges fetched client-side.
 
@@ -71,7 +90,8 @@ roadmap" section for what's fully implemented versus marked Experimental.
   dev-server-only issues (no production runtime impact); `npm audit` now reports zero
   vulnerabilities.
 
-[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.4.0-beta.1...HEAD
+[Unreleased]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.5.0-beta.1...HEAD
+[0.5.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.4.0-beta.1...v0.5.0-beta.1
 [0.4.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.2.0-beta.1...v0.4.0-beta.1
 [0.2.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/compare/v0.1.0-beta.1...v0.2.0-beta.1
 [0.1.0-beta.1]: https://github.com/nadeemmhdm/ai-brain-assistant/releases/tag/v0.1.0-beta.1

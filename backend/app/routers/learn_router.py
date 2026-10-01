@@ -21,6 +21,15 @@ async def start_learn(body: LearnRequest):
         raise HTTPException(500, f"Couldn't start learning: {e}")
     return {"session_id": session_id}
 
+@router.get("/active")
+def active():
+    """The currently running/paused session, if any -- lets the UI resume
+    watching it instead of just failing to start a second one."""
+    for sid, state in learn.SESSIONS.items():
+        if state["status"] in ("running", "paused"):
+            return {"session_id": sid, **state}
+    return None
+
 @router.get("/status")
 def status(session_id: str):
     state = learn.SESSIONS.get(session_id)

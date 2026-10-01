@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS skills (
     name TEXT NOT NULL,
     description TEXT,
     instructions TEXT NOT NULL,        -- folded into the system prompt for one message when invoked
+    kind TEXT NOT NULL DEFAULT 'prompt',  -- 'prompt' | 'translate' (translate bypasses the LLM entirely)
     builtin INTEGER NOT NULL DEFAULT 0,
     icon TEXT,
     created_at REAL NOT NULL
@@ -191,6 +192,9 @@ def init_db():
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()]
         if "summary" not in cols:
             conn.execute("ALTER TABLE conversations ADD COLUMN summary TEXT")
+        scols = [r["name"] for r in conn.execute("PRAGMA table_info(skills)").fetchall()]
+        if "kind" not in scols:
+            conn.execute("ALTER TABLE skills ADD COLUMN kind TEXT NOT NULL DEFAULT 'prompt'")
         mcols = [r["name"] for r in conn.execute("PRAGMA table_info(messages)").fetchall()]
         if "action_json" not in mcols:
             conn.execute("ALTER TABLE messages ADD COLUMN action_json TEXT")

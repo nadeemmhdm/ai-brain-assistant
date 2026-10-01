@@ -19,9 +19,16 @@ from .config import settings
 from . import db
 
 # --- trust tiers (section 5) --------------------------------------------
-TIER_A_HINTS = (".gov", ".edu", "w3.org", "ietf.org", "iso.org", "nist.gov",
-                "who.int", "un.org", "arxiv.org", "docs.python.org", "developer.mozilla.org")
-TIER_B_HINTS = ("wikipedia.org", "owasp.org", "ieee.org", "acm.org", "readthedocs.io")
+TIER_A_HINTS = (".gov", ".edu", "w3.org", "ietf.org", "iso.org", "nist.gov", "nvd.nist.gov",
+                "who.int", "un.org", "arxiv.org", "docs.python.org", "developer.mozilla.org",
+                # cybersecurity authorities -- standard, authoritative technical/educational sources
+                "cve.mitre.org", "cwe.mitre.org", "capec.mitre.org", "attack.mitre.org", "mitre.org",
+                "cisa.gov", "first.org", "sans.org", "us-cert.gov", "cert.org", "rfc-editor.org",
+                "kernel.org", "cisco.com/security", "msrc.microsoft.com")
+TIER_B_HINTS = ("wikipedia.org", "owasp.org", "ieee.org", "acm.org", "readthedocs.io",
+                "stackoverflow.com", "superuser.com", "serverfault.com", "github.com",
+                "portswigger.net", "hackerone.com", "exploit-db.com", "sans.edu", "krebsonsecurity.com",
+                "schneier.com", "cloudflare.com", "digitalocean.com/community")
 TIER_D_HINTS = ("reddit.com", "quora.com", "forum", "answers.")
 
 class SearchError(Exception):

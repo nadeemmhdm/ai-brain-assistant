@@ -27,7 +27,10 @@ export async function jAuth(res: Response): Promise<any> {
 }
 
 export async function j<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -115,6 +118,7 @@ export const api = {
       body: JSON.stringify({ topic }),
     }).then(j<{ session_id: string }>),
   learnStatus: (session_id: string) => authFetch(`${BASE}/api/learn/status?session_id=${session_id}`).then(j<any>),
+  learnActive: () => authFetch(`${BASE}/api/learn/active`).then((r) => (r.ok ? r.json() : null)),
   learnControl: (session_id: string, action: "pause" | "resume" | "cancel") =>
     authFetch(`${BASE}/api/learn/${action}?session_id=${session_id}`, { method: "POST" }),
 

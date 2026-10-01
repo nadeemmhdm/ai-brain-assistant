@@ -38,6 +38,18 @@ CATALOG = [
     {"key": "sequential-thinking", "name": "Sequential Thinking", "package": "@modelcontextprotocol/server-sequential-thinking",
      "description": "A structured scratchpad tool the model can use to reason through hard, multi-step problems.",
      "needs_path": False, "risk": "read"},
+    {"key": "memory", "name": "Memory (knowledge graph)", "package": "@modelcontextprotocol/server-memory",
+     "description": "A simple local knowledge graph the model can save entities and relations to across a session.",
+     "needs_path": False, "risk": "write"},
+    {"key": "time", "name": "Time", "package": "@modelcontextprotocol/server-time",
+     "description": "Current time and date conversions between timezones -- no internet needed.",
+     "needs_path": False, "risk": "read"},
+    {"key": "sqlite", "name": "SQLite", "package": "@modelcontextprotocol/server-sqlite",
+     "description": "Query and inspect a local SQLite database file you choose (read/write to that one file).",
+     "needs_path": True, "risk": "write"},
+    {"key": "everything", "name": "Everything (demo/test)", "package": "@modelcontextprotocol/server-everything",
+     "description": "The official reference/test server -- exercises every MCP feature. Useful to confirm MCP itself is working.",
+     "needs_path": False, "risk": "read"},
 ]
 CATALOG_BY_KEY = {c["key"]: c for c in CATALOG}
 

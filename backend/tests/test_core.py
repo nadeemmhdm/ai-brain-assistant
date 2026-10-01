@@ -123,7 +123,7 @@ def test_skills_seeded_and_crud(client):
     from app import skills
     skills.seed()
     names = {s["name"] for s in client.get("/api/skills").json()}
-    assert {"Summarize", "Explain simply", "Fix grammar"}.issubset(names)
+    assert {"Summarize", "Explain simply", "Fix grammar", "Make concise", "Debug this", "Action items", "Pros and cons", "Mock interviewer", "Write tests"}.issubset(names)
     sid = client.post("/api/skills", json={"name": "My skill", "instructions": "Be extra terse."}).json()["id"]
     assert client.put(f"/api/skills/{sid}", json={"name": "My skill 2", "instructions": "Be terse.", "description": ""}).status_code == 200
     builtin_id = next(s["id"] for s in client.get("/api/skills").json() if s["builtin"])
@@ -133,7 +133,7 @@ def test_skills_seeded_and_crud(client):
 def test_mcp_catalog_and_missing_path(client):
     cat = client.get("/api/mcp/catalog").json()
     keys = {c["key"] for c in cat}
-    assert {"filesystem", "fetch", "git", "sequential-thinking"} == keys
+    assert {"filesystem", "fetch", "git", "sequential-thinking", "memory", "time", "sqlite", "everything"} == keys
     assert client.post("/api/mcp/install", json={"key": "filesystem"}).status_code == 400  # needs a path
     r = client.post("/api/mcp/install", json={"key": "fetch"})
     assert r.status_code == 200
@@ -155,6 +155,37 @@ def test_search_error_is_honest(monkeypatch):
     import pytest as _pytest
     with _pytest.raises(search.SearchError):
         search.search("today's weather", use_cache=False)
+
+def test_translate_parse_and_resolve():
+    from app.routers.chat import _parse_translate
+    from app import translate
+    assert _parse_translate("to French: hello there") == ("French", "hello there")
+    assert _parse_translate("hola to English") == ("English", "hola")
+    assert _parse_translate("nothing here") is None
+    assert translate.resolve_code("French") == "fr"
+    assert translate.resolve_code("klingon") is None
+
+def test_translate_skill_seeded_and_endpoints(client):
+    from app import skills
+    skills.seed()
+    tr = next(s for s in client.get("/api/skills").json() if s["name"] == "Translate")
+    assert tr["kind"] == "translate"
+    status = client.get("/api/translate/status").json()
+    assert "available" in status and "languages" in status
+    assert client.post("/api/translate", json={"text": "hi", "to_code": "fr"}).status_code in (200, 400)  # 400 if the optional package isn't installed in this env
+
+def test_source_trust_expanded():
+    from app.search import classify_source
+    assert classify_source("https://nvd.nist.gov/vuln/1")[0] == "A"
+    assert classify_source("https://cve.mitre.org/x")[0] == "A"
+    assert classify_source("https://owasp.org/x")[0] == "B"
+    assert classify_source("https://exploit-db.com/x")[0] == "B"
+
+def test_persona_allows_security_topics():
+    from app.routers.chat import persona_prompt
+    p = persona_prompt(False)
+    assert "vulnerability scanning" in p.lower() or "cybersecurity" in p.lower()
+    assert "never deflect" in p.lower() and "confident" in p.lower()
 
 def test_chat_google_not_connected(client):
     cid = client.post("/api/conversations", json={}).json()["id"]

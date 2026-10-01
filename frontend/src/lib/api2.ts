@@ -84,6 +84,11 @@ export const api2 = {
     authFetch(`${BASE}/api/skills/${id}`, json("PUT", { name, description, instructions, icon })).then(jAuth),
   deleteSkill: (id: string) => authFetch(`${BASE}/api/skills/${id}`, { method: "DELETE" }).then(jAuth),
 
+  // translate
+  translateStatus: () => authFetch(`${BASE}/api/translate/status`).then(j<any>),
+  translateCatalog: () => authFetch(`${BASE}/api/translate/catalog`).then(j<any[]>),
+  translateInstall: (from_code: string, to_code: string) => authFetch(`${BASE}/api/translate/install`, json("POST", { from_code, to_code })).then(jAuth),
+
   // updates
   checkUpdates: (force = false) => authFetch(`${BASE}/api/updates?force=${force}`).then(j<any>),
   installUpdate: () => authFetch(`${BASE}/api/updates/install`, { method: "POST" }).then(jAuth),

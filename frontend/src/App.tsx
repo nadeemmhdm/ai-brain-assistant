@@ -4,6 +4,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { AutoLearnModal } from "@/components/layout/AutoLearnModal";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { ChatComposer } from "@/components/chat/ChatComposer";
+import { QueueStrip } from "@/components/chat/QueueStrip";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { GeneratingIndicator } from "@/components/chat/ThinkingIndicator";
 import { NavRail, type View } from "@/components/layout/NavRail";
@@ -27,6 +28,8 @@ export default function App() {
     model, setModel, reasoningLevel, setReasoningLevel, searchMode, setSearchMode,
     offlineMode, aiName, live, setLive, clearLive,
     streaming, setStreaming,
+    messageQueue, enqueueMessage, dequeueMessage, removeQueuedMessage, editQueuedMessage,
+    sidebarOpen, setSidebarOpen,
   } = useAppStore();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -37,6 +40,7 @@ export default function App() {
   const [locked, setLocked] = useState<boolean | null>(null); // null = still checking
   const [offline, setOffline] = useState(!navigator.onLine);
   const abortRef = useRef<AbortController | null>(null);
+  const skipAutoDequeueRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const messages: Message[] = activeConversationId ? messagesByConversation[activeConversationId] || [] : [];
@@ -172,12 +176,29 @@ export default function App() {
     } finally {
       setStreaming(false);
       refreshConversations();
+      if (skipAutoDequeueRef.current) {
+        skipAutoDequeueRef.current = false;
+      } else {
+        const next = dequeueMessage();
+        if (next) send(next);
+      }
     }
   }
 
   function stop() {
     abortRef.current?.abort();
     setStreaming(false);
+  }
+
+  function forceSendQueued(index: number) {
+    const text = messageQueue[index];
+    if (!text) return;
+    removeQueuedMessage(index);
+    if (streaming) {
+      skipAutoDequeueRef.current = true;
+      stop();
+    }
+    send(text);
   }
 
   function copy(text: string) { navigator.clipboard.writeText(text); toast.success("Copied to clipboard"); }
@@ -256,15 +277,32 @@ export default function App() {
       {view === "models" && <ModelsView />}
       {view === "google" && <GoogleView />}
       {view === "mcp" && <McpView />}
-      {view === "chat" && <Sidebar
-        conversations={conversations}
-        onNew={newConversation}
-        onSelect={selectConversation}
-        onRename={renameConversation}
-        onDelete={deleteConversation}
-      />}
+      {view === "chat" && (
+        <AnimatePresence initial={false}>
+          {sidebarOpen && (
+            <motion.div
+              initial={{ width: 0 }} animate={{ width: 256 }} exit={{ width: 0 }}
+              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+              className="overflow-hidden flex-shrink-0"
+            >
+              <div className="w-64 h-full">
+                <Sidebar
+                  conversations={conversations}
+                  onNew={newConversation}
+                  onSelect={selectConversation}
+                  onRename={renameConversation}
+                  onDelete={deleteConversation}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
       {view === "chat" && <div className="flex-1 flex flex-col min-w-0">
-        <TopBar title={activeTitle} onOpenAutoLearn={() => setAutoLearnOpen(true)} offline={offline} />
+        <TopBar
+          title={activeTitle} onOpenAutoLearn={() => setAutoLearnOpen(true)} offline={offline}
+          sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto w-full py-4">
@@ -299,10 +337,18 @@ export default function App() {
         </div>
 
         <div className="px-4 pb-4 pt-2 border-t border-border">
+          <QueueStrip queue={messageQueue} onRemove={removeQueuedMessage} onEdit={editQueuedMessage} onForceSend={forceSendQueued} />
           <ChatComposer
-            onSend={(text) => send(text)}
-            disabled={streaming}
+            onSend={(text) => {
+              if (streaming) {
+                if (!enqueueMessage(text)) toast.error("Waiting list is full (5 messages) — remove one first.");
+              } else {
+                send(text);
+              }
+            }}
+            disabled={false}
             streaming={streaming}
+            queueFull={messageQueue.length >= 5}
             onStop={stop}
             model={model} setModel={setModel}
             reasoningLevel={reasoningLevel} setReasoningLevel={setReasoningLevel}
