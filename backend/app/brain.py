@@ -111,7 +111,12 @@ def search_knowledge(query: str, topic: Optional[str] = None, top_k: int = 5) ->
     scored = []
     for row in rows:
         vec = np.frombuffer(row["embedding"], dtype=np.float32)
-        score = _cosine(qvec, vec)
+        semantic = _cosine(qvec, vec)
+        query_tokens = set(_tokens(query))
+        row_tokens = set(_tokens(f"{row['topic']} {row['subtopic'] or ''} {row['question']} {row['summary'] or ''}"))
+        lexical = len(query_tokens & row_tokens) / len(query_tokens) if query_tokens else 0.0
+        verified_bonus = 0.035 if row["verification_status"] == "verified" else (-0.08 if row["verification_status"] == "conflict" else 0.0)
+        score = 0.78 * semantic + 0.22 * lexical + verified_bonus
         scored.append((score, row))
     scored.sort(key=lambda x: x[0], reverse=True)
 
