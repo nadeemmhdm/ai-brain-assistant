@@ -8,7 +8,7 @@ for final knowledge synthesis and conflict explanations.
 """
 import asyncio
 import json
-from . import db, search, brain, llm_client, research, scholarly
+from . import db, search, brain, llm_client, research, scholarly, trusted_search
 
 SESSIONS: dict[str, dict] = {}  # session_id -> live progress state (in-memory)
 
@@ -75,7 +75,11 @@ async def run_auto_learn(session_id: str, topic: str):
                 await asyncio.sleep(0.5)
 
             state["current_task"] = f"Researching: {question}"
-            results = await asyncio.to_thread(search.search, question, "duckduckgo", search_top_n())
+            # Discover and independently fetch original authoritative pages. Search ranking
+            # is discovery only; it is never treated as truth by itself.
+            trusted_pages = await asyncio.to_thread(trusted_search.collect, question, search_top_n() * 2, min(6, search_top_n()))
+            results = [{"url": p["url"], "title": p.get("title"), "trust_tier": p["trust_tier"],
+                        "source_type": p["source_type"], "_trusted_page": p} for p in trusted_pages]
             academic = await asyncio.to_thread(scholarly.discover, question, 4)
             # Scholarly APIs complement normal web discovery. Prefer authoritative
             # evidence, but preserve independent domains for corroboration.
@@ -92,7 +96,7 @@ async def run_auto_learn(session_id: str, topic: str):
             for r in results:
                 if not r.get("url"):
                     continue
-                page = await asyncio.to_thread(search.fetch_and_extract, r["url"])
+                page = r.get("_trusted_page") or await asyncio.to_thread(search.fetch_and_extract, r["url"])
                 if not page and r.get("snippet"):
                     # Structured scholarly APIs often expose an abstract while the
                     # publisher page itself is paywalled. Store the API evidence
