@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, Plug, Sun, Moon, Cpu, Database, Lock } from "lucide-react";
+import { ShieldCheck, Plug, Sun, Moon, Cpu, Database, Lock, Monitor } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/store/useToast";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ export function SettingsPanel() {
         <Section icon={theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />} title="Appearance">
           <Field label="Theme">
             <div className="flex gap-2">
+              <Chip active={theme === "system"} onClick={() => setTheme("system")}><span className="inline-flex gap-1 items-center"><Monitor className="h-3 w-3"/>System</span></Chip>
               <Chip active={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Chip>
               <Chip active={theme === "light"} onClick={() => setTheme("light")}>Light</Chip>
             </div>
