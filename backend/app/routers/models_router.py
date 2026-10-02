@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 import httpx
 import os
+import re
 from .. import llm_client, model_manager, downloads, vault, errors
 from ..config import settings
 
@@ -76,6 +77,44 @@ def cancel(did: str):
     downloads.cancel(did)
     return {"ok": True}
 
+
+# ---- browser file picker import ----------------------------------------------
+# Browsers deliberately do not expose a real local filesystem path. Stream the
+# selected GGUF to the app's local Models directory instead, without buffering
+# multi-GB model files in RAM.
+@router.post("/import/upload")
+async def import_model_upload(request: Request):
+    raw_name = request.headers.get("X-Model-Filename", "")
+    name = os.path.basename(raw_name.strip().replace("\\", "/"))
+    if not name.lower().endswith(".gguf") or not re.fullmatch(r"[A-Za-z0-9._() +\-]+\.gguf", name, re.I):
+        raise errors.http(400, "AIB-MDL-002", "Select a valid .gguf model file.")
+    os.makedirs(settings.models_dir, exist_ok=True)
+    dest = os.path.join(settings.models_dir, name)
+    part = dest + ".part"
+    if os.path.exists(dest):
+        raise errors.http(409, "AIB-MDL-002", f"{name} is already in the models folder.")
+    written = 0
+    try:
+        with open(part, "wb") as out:
+            async for chunk in request.stream():
+                if chunk:
+                    written += len(chunk)
+                    out.write(chunk)
+        if written < 4:
+            raise ValueError("The selected file is empty or incomplete.")
+        with open(part, "rb") as chk:
+            if chk.read(4) != b"GGUF":
+                raise ValueError("The selected file is not a valid GGUF model.")
+        os.replace(part, dest)
+        return {"filename": name, "mode": "upload", "size_mb": round(written / 1e6, 1)}
+    except Exception as e:
+        try:
+            if os.path.exists(part): os.remove(part)
+        except OSError:
+            pass
+        if isinstance(e, HTTPException):
+            raise
+        raise errors.http(400, "AIB-MDL-002", str(e))
 
 # ---- import models you already have on disk ---------------------------------
 class ImportModelBody(BaseModel):
