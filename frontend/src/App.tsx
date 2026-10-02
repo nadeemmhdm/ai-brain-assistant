@@ -176,6 +176,14 @@ export default function App() {
       clearLive(assistantId);
     } finally {
       setStreaming(false);
+      // Re-sync the finished conversation from SQLite. This repairs UI state if a
+      // browser/proxy dropped the final SSE event after the backend saved the reply.
+      try {
+        const persisted = await api.getMessages(cid);
+        if (persisted.length) setMessages(cid, persisted);
+      } catch {
+        // Keep the streamed local state when the backend is temporarily unreachable.
+      }
       refreshConversations();
       if (skipAutoDequeueRef.current) {
         skipAutoDequeueRef.current = false;
