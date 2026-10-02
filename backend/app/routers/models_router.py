@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
+import os
 from .. import llm_client, model_manager, downloads, vault, errors
 from ..config import settings
 
@@ -15,13 +16,13 @@ async def status():
         "agent": {**agent_status, "name": settings.agent_model_name},
         "reasoning_levels": list(settings.reasoning_levels.keys()),
         "default_reasoning_level": settings.default_reasoning_level,
-        "models_dir": settings.models_dir,
+        "models_dir": os.path.basename(os.path.normpath(settings.models_dir)) or "Models",
         "managed": model_manager.running(),
     }
 
 @router.get("/local")
 def local():
-    return {"models_dir": settings.models_dir, "models": model_manager.list_local(), "running": model_manager.running()}
+    return {"models_dir": os.path.basename(os.path.normpath(settings.models_dir)) or "Models", "models": model_manager.list_local(), "running": model_manager.running()}
 
 class LoadBody(BaseModel):
     role: str
