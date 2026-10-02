@@ -1,4 +1,12 @@
 export const BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
+export function apiError(detail: any, res: Response): Error {
+  if (detail && typeof detail === "object" && detail.code) {
+    const err = new Error(`[${detail.code}] ${detail.message || res.statusText}${detail.hint ? ` — ${detail.hint}` : ""}`);
+    (err as any).code = detail.code; (err as any).hint = detail.hint; return err;
+  }
+  return new Error(typeof detail === "string" ? detail : `${res.status} ${res.statusText}`);
+}
+
 
 // --- session token (app-lock) -------------------------------------------
 let sessionToken: string | null = sessionStorage.getItem("session_token");
@@ -22,14 +30,14 @@ export async function authFetch(url: string, init: RequestInit = {}): Promise<Re
 
 export async function jAuth(res: Response): Promise<any> {
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.detail || `${res.status} ${res.statusText}`);
+  if (!res.ok) throw apiError(body.detail, res);
   return body;
 }
 
 export async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail || `${res.status} ${res.statusText}`);
+    throw apiError(body?.detail, res);
   }
   return res.json();
 }

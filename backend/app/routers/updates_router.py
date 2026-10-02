@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 import asyncio
-from .. import updater
+from .. import updater, errors
 from .settings_router import get_value
 
 router = APIRouter(prefix="/api/updates", tags=["updates"])
@@ -14,4 +14,4 @@ async def install():
     try:
         return await asyncio.to_thread(updater.install)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise errors.http(400, "AIB-UPD-001", str(e))

@@ -237,6 +237,10 @@ footer{border-top:1px solid var(--border); padding:44px 0}
   .trust-row{gap:14px}
   .step{grid-template-columns:32px 1fr; padding:16px}
 }
+
+/* docs + error finder */
+.doc-search{width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:14px var(--mono);outline:none}.doc-search:focus{border-color:var(--accent)}
+.error-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}.error-card{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:16px}.error-card code{color:var(--accent2);font:600 13px var(--mono)}.error-card h3{font-size:14px;margin:8px 0 5px}.error-card p{font-size:12px;color:var(--muted);margin:0}.docs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.doc-link{display:block;text-decoration:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:18px}.doc-link:hover{border-color:var(--accent)}.doc-link strong{display:block;margin-bottom:6px}.doc-link span{font-size:12px;color:var(--muted)}@media(max-width:760px){.error-grid,.docs-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -249,6 +253,7 @@ footer{border-top:1px solid var(--border); padding:44px 0}
       <a class="navlink" href="#features">features</a>
       <a class="navlink" href="#architecture">how it works</a>
       <a class="navlink" href="#quickstart">quick start</a>
+      <a class="navlink" href="#docs">docs & errors</a>
       <a class="navlink" href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/README.md" target="_blank" rel="noopener">docs</a>
     </nav>
     <a class="gh-btn" href="https://github.com/nadeemmhdm/ai-brain-assistant" target="_blank" rel="noopener" id="gh-btn-desktop">
@@ -261,6 +266,7 @@ footer{border-top:1px solid var(--border); padding:44px 0}
     <a href="#features">features</a>
     <a href="#architecture">how it works</a>
     <a href="#quickstart">quick start</a>
+    <a href="#docs">docs & errors</a>
     <a href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/README.md" target="_blank" rel="noopener">docs</a>
     <a class="gh-btn" href="https://github.com/nadeemmhdm/ai-brain-assistant" target="_blank" rel="noopener">view source on GitHub</a>
   </div>
@@ -409,6 +415,19 @@ cd ../frontend && npm install</pre><button class="copy-btn" data-target="code-2"
       </div>
     </div>
   </section>
+
+  <section id="docs">
+    <div class="wrap">
+      <div class="section-head reveal"><p class="kicker">support & documentation</p><h2 class="display">Find an error. Understand it fast.</h2><p class="section-sub">Paste an AI Brain error code or search by words such as model, learning, update, network, or training.</p></div>
+      <input id="error-search" class="doc-search" type="search" placeholder="Search error codes — e.g. AIB-LRN-002 or Hugging Face" aria-label="Search AI Brain error codes">
+      <div id="error-results" class="error-grid"></div>
+      <div class="docs-grid">
+        <a class="doc-link" href="ERROR_CODES.md"><strong>Error Codes</strong><span>Complete code registry, meanings, fixes and API format.</span></a>
+        <a class="doc-link" href="https://github.com/nadeemmhdm/ai-brain-assistant/blob/main/README.md"><strong>README</strong><span>Installation, trusted learning, CLI and configuration.</span></a>
+        <a class="doc-link" href="https://github.com/nadeemmhdm/ai-brain-assistant/tree/main/docs"><strong>All Docs</strong><span>Browse every project document stored in the docs folder.</span></a>
+      </div>
+    </div>
+  </section>
 </main>
 
 <footer>
@@ -501,6 +520,12 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
     });
   });
 });
+</script>
+
+<script>
+const AIB_ERRORS=[
+["AIB-GEN-001","Unexpected internal error","Retry once, then check the backend log."],["AIB-NET-001","Internet service is unreachable","Check the network or continue offline."],["AIB-AUTH-001","Authentication required","Unlock AI Brain and retry."],["AIB-MDL-001","Local model server unavailable","Start/load the llama.cpp model server."],["AIB-MDL-002","Invalid model request","Check model filename, path and role."],["AIB-MDL-003","Hugging Face is unreachable","Check internet access and retry."],["AIB-MDL-004","Invalid Hugging Face token","Verify token and permissions."],["AIB-LRN-001","Invalid learning topic","Use a topic between 1 and 200 characters."],["AIB-LRN-002","Learning session already running","Finish or cancel the active session."],["AIB-LRN-003","Unknown learning session","Refresh the learning view."],["AIB-BRN-001","Invalid Brain knowledge input","Provide a valid question and answer."],["AIB-TRN-001","Unknown training job","Refresh Training and verify the job ID."],["AIB-UPD-001","Update cannot be installed safely","Check Git, network and local changes."]];
+function renderErrors(){const q=(document.getElementById("error-search")?.value||"").trim().toLowerCase();const rows=AIB_ERRORS.filter(x=>!q||x.join(" ").toLowerCase().includes(q));document.getElementById("error-results").innerHTML=rows.map(x=>'<div class="error-card"><code>'+x[0]+'</code><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join("")||'<div class="error-card"><h3>No matching error code</h3><p>Try the complete code or a component keyword.</p></div>';}document.getElementById("error-search")?.addEventListener("input",renderErrors);renderErrors();
 </script>
 </body>
 </html>

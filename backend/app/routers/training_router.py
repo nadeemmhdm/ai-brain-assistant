@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from .. import training
+from .. import training, errors
 
 router = APIRouter(prefix="/api/training", tags=["training"])
 
@@ -27,7 +27,7 @@ def start(body: StartTrainingBody):
 def status(job_id: str):
     s = training.get_status(job_id)
     if not s:
-        raise HTTPException(404, "Unknown job_id")
+        raise errors.http(404, "AIB-TRN-001", "Unknown training job.")
     return s
 
 @router.get("")

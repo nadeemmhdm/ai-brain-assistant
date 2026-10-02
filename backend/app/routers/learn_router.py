@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import asyncio
 from pydantic import BaseModel
-from .. import learn
+from .. import learn, errors
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -12,9 +12,9 @@ class LearnRequest(BaseModel):
 async def start_learn(body: LearnRequest):
     topic = body.topic.strip()
     if not topic or len(topic) > 200:
-        raise HTTPException(400, "Enter a topic (1-200 characters).")
+        raise errors.http(400, "AIB-LRN-001", "Enter a topic (1-200 characters).")
     if learn.any_running():
-        raise HTTPException(409, "Another Auto Learn session is already running. Wait for it to finish, or cancel it first.")
+        raise errors.http(409, "AIB-LRN-002", "Another Trusted Topic Learning session is already running.")
     try:
         session_id = learn.start_session(topic)
     except Exception as e:
@@ -34,7 +34,7 @@ def active():
 def status(session_id: str):
     state = learn.SESSIONS.get(session_id)
     if not state:
-        raise HTTPException(404, "Unknown session_id")
+        raise errors.http(404, "AIB-LRN-003", "Unknown learning session.")
     return state
 
 @router.post("/pause")
