@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, MessageSquare, Pencil, Trash2, Settings, Circle } from "lucide-react";
+import { Plus, MessageSquare, Pencil, Trash2, Sun, Moon, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, type Conversation } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
@@ -14,7 +14,7 @@ export function Sidebar({
   onRename: (id: string, title: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const { activeConversationId, setSettingsOpen } = useAppStore();
+  const { activeConversationId, theme, setTheme } = useAppStore();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [modelStatus, setModelStatus] = useState<{ main?: any; agent?: any }>({});
@@ -81,8 +81,12 @@ export function Sidebar({
           <StatusDot label="Main" online={!!modelStatus.main?.online} />
           <StatusDot label="Agent" online={!!modelStatus.agent?.online} />
         </div>
-        <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => setSettingsOpen(true)}>
-          <Settings className="h-4 w-4" /> Settings
+        <Button
+          variant="ghost" size="sm" className="w-full justify-start gap-2"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
         </Button>
       </div>
     </div>
