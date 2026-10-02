@@ -21,6 +21,7 @@ import { Sparkles, Brain, Search, GraduationCap } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { api, streamChat, getSessionToken, setUnauthorizedHandler, type Conversation, type Message } from "@/lib/api";
 import { api2 } from "@/lib/api2";
+import { resolveEngine, listen } from "@/lib/voice";
 
 export default function App() {
   const {
@@ -40,6 +41,7 @@ export default function App() {
   const [skillName, setSkillName] = useState<string | null>(null);
   const [locked, setLocked] = useState<boolean | null>(null); // null = still checking
   const [offline, setOffline] = useState(!navigator.onLine);
+  const [voiceListening, setVoiceListening] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const skipAutoDequeueRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -191,6 +193,27 @@ export default function App() {
         const next = dequeueMessage();
         if (next) send(next);
       }
+    }
+  }
+
+  async function voiceInput() {
+    if (voiceListening || streaming) return;
+    setVoiceListening(true);
+    try {
+      const { engine, note } = await resolveEngine("auto");
+      if (offline && engine !== "local") {
+        toast.error("Offline speech recognition needs a local STT model. Install one in Models & Voice.");
+        return;
+      }
+      if (note) toast.info(note);
+      toast.info(engine === "local" ? "Listening offline…" : "Listening…");
+      const text = await listen({ engine, maxMs: 20000, silenceMs: 1000, startTimeoutMs: 8000 });
+      if (text.trim()) await send(text.trim());
+      else toast.info("No speech detected");
+    } catch (e: any) {
+      toast.error(e?.message || "Speech recognition failed");
+    } finally {
+      setVoiceListening(false);
     }
   }
 
@@ -364,7 +387,8 @@ export default function App() {
             reasoningLevel={reasoningLevel} setReasoningLevel={setReasoningLevel}
             searchMode={searchMode} setSearchMode={setSearchMode}
             offline={offlineMode}
-            aiName={aiName}
+            onVoice={voiceInput}
+            aiName={voiceListening ? `${aiName} · listening` : aiName}
             skillId={skillId}
             skillName={skillName}
             onSkillChange={(id, name) => { setSkillId(id); setSkillName(name); }}
