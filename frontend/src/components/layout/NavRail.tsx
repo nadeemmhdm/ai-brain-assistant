@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { MessageSquare, Database, Cpu, Settings, Boxes, Mail, Plug } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { AnimatedIcon } from "@/components/ui/AnimatedIcon";
 
 export type View = "chat" | "brain" | "training" | "models" | "google" | "mcp";
 const ITEMS: { id: View; icon: any; label: string }[] = [
@@ -15,7 +16,7 @@ const ITEMS: { id: View; icon: any; label: string }[] = [
 export function NavRail({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   return (
-    <nav className="w-14 flex-shrink-0 bg-surface border-r border-border flex flex-col items-center py-3 gap-1">
+    <nav className="w-14 flex-shrink-0 bg-surface/95 backdrop-blur border-r border-border flex flex-col items-center py-3 gap-1 z-20">
       {ITEMS.map(({ id, icon: Icon, label }) => (
         <button
           key={id} title={label} onClick={() => onChange(id)}
@@ -29,7 +30,7 @@ export function NavRail({ view, onChange }: { view: View; onChange: (v: View) =>
             />
           )}
           <motion.span whileTap={{ scale: 0.88 }} className={`relative ${view === id ? "text-accent" : ""}`}>
-            <Icon className="h-[18px] w-[18px]" />
+            <AnimatedIcon icon={Icon} kind={id === "training" ? "pulse" : id === "brain" ? "float" : "wiggle"} />
           </motion.span>
         </button>
       ))}
