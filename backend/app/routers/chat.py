@@ -517,13 +517,27 @@ async def chat(body: ChatRequest):
         if not answer:
             # Never persist/send an invisible assistant message. Some local model
             # templates can finish without a content delta even though generation ran.
+            # Retry the selected model with reasoning disabled at protocol level.
+            # If the main model still emits no visible content, transparently use the
+            # working agent/fast model for this one reply instead of showing an error.
             fallback = await llm_client.complete(
                 model,
-                [{"role": "system", "content": "Reply directly to the user in one short helpful message. Output visible answer text only."},
+                [{"role": "system", "content": "Reply directly to the user. Output final visible answer text only."},
                  {"role": "user", "content": user_text}],
                 "off",
             )
-            answer = fallback.strip() or "I couldn't produce a visible reply from the selected model. Please retry or reload the Main model."
+            fallback_model = model
+            if not fallback.strip() and model == "main" and (await llm_client.check_model_status("agent"))["online"]:
+                fallback_model = "agent"
+                fallback = await llm_client.complete(
+                    "agent",
+                    [{"role": "system", "content": "Reply directly and concisely. Output final answer text only; do not emit thinking tags."},
+                     {"role": "user", "content": user_text}],
+                    "off",
+                )
+                if fallback.strip():
+                    yield _sse("status", {"stage": "notice", "detail": "Main model returned no visible content; Fast model completed this reply."})
+            answer = fallback.strip() or "The selected local model returned no text. Reload the Main model and try again."
             yield _sse("delta", {"text": answer})
 
         # drop citation numbers that don't exist
