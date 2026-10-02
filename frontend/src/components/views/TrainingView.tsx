@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Cpu, FileJson, Check, X, Trash2, Play, Info, Loader2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
+import { api2 } from "@/lib/api2";
 import { toast } from "@/store/useToast";
 
 const inputCls = "w-full h-9 px-3 rounded-lg bg-surface-2 border border-border text-sm focus:outline-none focus:border-accent";
@@ -16,10 +17,14 @@ export function TrainingView() {
   const [onlyVerified, setOnlyVerified] = useState(true);
   const [form, setForm] = useState({ dataset_id: "", base_model_path: "", output_dir: "", epochs: 3, learning_rate: 0.0002, lora_r: 8 });
   const poll = useRef<number | null>(null);
+  const [cloud, setCloud] = useState<any>({ active_provider: null, providers: [] });
+  const [cloudForm, setCloudForm] = useState({ provider: "openai", model: "", base_url: "", api_key: "", active: true });
+  const [distillId, setDistillId] = useState("");
+  const loadCloud = () => api2.cloudTrainingProviders().then(setCloud).catch(() => {});
 
   const loadDatasets = () => api.listDatasets().then(setDatasets).catch(() => {});
   const loadJobs = () => api.listTraining().then(setJobs).catch(() => {});
-  useEffect(() => { loadDatasets(); loadJobs(); }, []);
+  useEffect(() => { loadDatasets(); loadJobs(); loadCloud(); }, []);
 
   // poll while any job is active
   useEffect(() => {
@@ -127,7 +132,29 @@ export function TrainingView() {
           </div>
         </Card>
 
-        <Card title="3 · Start LoRA training (explicit, optional)">
+        <Card title="3 · Private cloud teacher (optional)">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted mb-3">
+            Cloud mode sends only approved examples from the dataset you explicitly select. Chat history, Memory, the full Brain database and local files are never attached. API keys are encrypted locally and are never shown again.
+          </div>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <select className={inputCls} value={cloudForm.provider} onChange={(e) => setCloudForm({ ...cloudForm, provider: e.target.value })}>
+              <option value="openai">OpenAI API</option><option value="ollama_cloud">Ollama Cloud</option><option value="compatible">OpenAI-compatible Cloud</option>
+            </select>
+            <input className={inputCls} type="password" autoComplete="off" placeholder="API key (stored encrypted)" value={cloudForm.api_key} onChange={(e) => setCloudForm({ ...cloudForm, api_key: e.target.value })} />
+            <input className={inputCls} placeholder="Model (leave blank for default)" value={cloudForm.model} onChange={(e) => setCloudForm({ ...cloudForm, model: e.target.value })} />
+            <input className={inputCls} placeholder={cloudForm.provider === "compatible" ? "https://provider.example/v1" : "Base URL (default recommended)"} value={cloudForm.base_url} onChange={(e) => setCloudForm({ ...cloudForm, base_url: e.target.value })} />
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Btn onClick={async()=>{try{await api2.cloudTrainingConfigure(cloudForm);setCloudForm({...cloudForm,api_key:""});await loadCloud();toast.success("Cloud training provider saved");}catch(e:any){toast.error(e.message)}}}>Save & activate</Btn>
+            <span className="text-xs text-muted self-center">Active: {cloud.active_provider || "none"} · only one provider can be active</span>
+          </div>
+          <div className="grid sm:grid-cols-[1fr_auto] gap-2 mt-4">
+            <select className={inputCls} value={distillId} onChange={(e)=>setDistillId(e.target.value)}><option value="">Select approved dataset…</option>{datasets.map((d)=><option key={d.id} value={d.id}>{d.name} ({d.approved_count} approved)</option>)}</select>
+            <Btn disabled={!distillId || !cloud.active_provider} onClick={async()=>{try{toast.info("Cloud teacher started — only selected approved examples are sent");const r=await api2.cloudTrainingDistill(distillId);toast.success(`${r.refined_items} examples refined and stored locally`);if(openId===distillId)setItems(await api.datasetItems(distillId));}catch(e:any){toast.error(e.message)}}}>Refine locally stored dataset</Btn>
+          </div>
+        </Card>
+
+        <Card title="4 · Start local LoRA training (explicit, optional)">
           <div className="grid sm:grid-cols-2 gap-2">
             <select className={inputCls} value={form.dataset_id} onChange={(e) => setForm({ ...form, dataset_id: e.target.value })}>
               <option value="">Select dataset…</option>
