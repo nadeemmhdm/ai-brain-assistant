@@ -61,6 +61,8 @@ class ServerHandle:
     next_id: int = 1
     starting: bool = False
     error: str | None = None
+    stderr_task: object | None = None
+    stderr_lines: list = field(default_factory=list)
 
 RUNNING: dict[str, ServerHandle] = {}   # server row id -> handle
 
@@ -69,6 +71,24 @@ def npx_path() -> str:
     if not p:
         raise ValueError("Node.js/npm (which provides `npx`) wasn't found. Install Node.js to use MCP servers.")
     return p
+
+
+async def _capture_stderr(h: ServerHandle):
+    if not h.proc or not h.proc.stderr: return
+    while True:
+        raw = await h.proc.stderr.readline()
+        if not raw: return
+        line = raw.decode(errors="replace").strip()
+        if line:
+            h.stderr_lines.append(line)
+            h.stderr_lines[:] = h.stderr_lines[-12:]
+
+def diagnostics() -> dict:
+    try:
+        npx = npx_path()
+        return {"ready": True, "npx": npx, "node": shutil.which("node"), "npm": shutil.which("npm")}
+    except ValueError as e:
+        return {"ready": False, "error": str(e), "npx": None, "node": shutil.which("node"), "npm": shutil.which("npm")}
 
 def list_installed() -> list[dict]:
     with db.get_conn() as conn:
@@ -144,9 +164,10 @@ async def start(sid: str) -> ServerHandle:
         args = db.loads(row["args_json"]) or []
         cmd = [npx_path(), "-y", row["command"], *args] if row["command"].startswith("@") else [row["command"], *args]
         proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-                                                     stderr=asyncio.subprocess.DEVNULL,
+                                                     stderr=asyncio.subprocess.PIPE,
                                                      cwd=settings.data_dir)
         h.proc = proc
+        h.stderr_task = asyncio.create_task(_capture_stderr(h))
         await _rpc(h, "initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
                                      "clientInfo": {"name": "ai-brain-assistant", "version": "1"}}, timeout=15)
         await _rpc(h, "notifications/initialized", {}, notify=True)
@@ -155,7 +176,10 @@ async def start(sid: str) -> ServerHandle:
         h.starting = False
         return h
     except Exception as e:
-        h.error = str(e)[:300]; h.starting = False
+        detail = str(e)
+        if h.stderr_lines:
+            detail += " | " + " | ".join(h.stderr_lines[-4:])
+        h.error = detail[:900]; h.starting = False
         if h.proc and h.proc.returncode is None:
             h.proc.terminate()
         raise ValueError(f"Couldn't start '{row['name']}': {h.error}")

@@ -3,6 +3,7 @@ import { BASE, authFetch, j, jAuth } from "./api";
 const json = (method: string, body?: any): RequestInit => ({ method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api2 = {
+  analyzeFile: async (file: File) => jAuth(await authFetch(`${BASE}/api/files/analyze`, { method: "POST", headers: { "X-Filename": file.name }, body: file })),
   // conversations
   forkConversation: (id: string, message_id: string) => authFetch(`${BASE}/api/conversations/${id}/fork`, json("POST", { message_id })).then(jAuth),
   searchConversations: (q: string) => authFetch(`${BASE}/api/conversations?q=${encodeURIComponent(q)}`).then(j<any[]>),
@@ -72,6 +73,7 @@ export const api2 = {
 
   // mcp
   mcpCatalog: () => authFetch(`${BASE}/api/mcp/catalog`).then(j<any[]>),
+  mcpDiagnostics: () => authFetch(`${BASE}/api/mcp/diagnostics`).then(j<any>),
   mcpServers: () => authFetch(`${BASE}/api/mcp/servers`).then(j<any[]>),
   mcpInstall: (key: string, path?: string) => authFetch(`${BASE}/api/mcp/install`, json("POST", { key, path })).then(jAuth),
   mcpInstallCustom: (name: string, command: string, args: string[]) => authFetch(`${BASE}/api/mcp/install-custom`, json("POST", { name, command, args })).then(jAuth),

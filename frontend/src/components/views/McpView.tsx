@@ -12,6 +12,7 @@ const inp = "w-full h-9 px-3 rounded-lg bg-surface-2 border border-border text-s
 export function McpView() {
   const convId = useAppStore((s) => s.activeConversationId);
   const [catalog, setCatalog] = useState<any[]>([]);
+  const [diag, setDiag] = useState<any>(null);
   const [servers, setServers] = useState<any[]>([]);
   const [paths, setPaths] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
@@ -22,7 +23,7 @@ export function McpView() {
   const [req, setReq] = useState<{ sid: string; tool: string; args: any; label: string; resolve: (g: Grant | null) => void } | null>(null);
   const poll = useRef<number | null>(null);
 
-  const load = () => { api2.mcpCatalog().then(setCatalog).catch(() => {}); api2.mcpServers().then(setServers).catch(() => {}); };
+  const load = () => { api2.mcpCatalog().then(setCatalog).catch(() => {}); api2.mcpServers().then(setServers).catch(() => {}); api2.mcpDiagnostics().then(setDiag).catch(() => {}); };
   useEffect(() => { load(); poll.current = window.setInterval(load, 4000); return () => { if (poll.current) clearInterval(poll.current); }; }, []);
 
   const act = async (key: string, fn: () => Promise<any>, ok?: string) => {
@@ -57,6 +58,9 @@ export function McpView() {
           <p className="text-[11px] text-muted mt-1">Needs Node.js (for <code>npx</code>) to launch the official servers below.</p>
         </div>
 
+        {diag && !diag.ready && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400">
+          MCP runtime is not ready: {diag.error}. Install/repair Node.js so <code>node</code>, <code>npm</code> and <code>npx</code> are available, then restart AI Brain.
+        </div>}
         <Card title="Trusted catalog">
           <div className="grid sm:grid-cols-2 gap-3">
             {catalog.map((c) => (
@@ -88,13 +92,14 @@ export function McpView() {
                     <span className={`h-1.5 w-1.5 rounded-full ${s.running ? "bg-emerald-500" : "bg-muted"}`} />
                     <span className="font-medium">{s.name}</span>
                     {s.trusted && <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />}
-                    <span className="text-xs text-muted">{s.running ? `${s.tool_count} tools` : "stopped"}</span>
+                    <span className="text-xs text-muted">{s.running ? `${s.tool_count} tools` : s.error ? "start failed" : "stopped"}</span>
                   </button>
                   {s.running
                     ? <button disabled={busy === "stop" + s.id} onClick={() => act("stop" + s.id, () => api2.mcpStop(s.id))} className="text-xs text-muted hover:text-ink flex items-center gap-1"><Square className="h-3.5 w-3.5" /></button>
                     : <button disabled={busy === "start" + s.id} onClick={() => act("start" + s.id, () => api2.mcpStart(s.id), "Started")} className="text-xs text-muted hover:text-accent flex items-center gap-1">{busy === "start" + s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}</button>}
                   <button onClick={() => act("rm" + s.id, () => api2.mcpRemove(s.id), "Removed")} className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
+                {s.error && <div className="px-3 pb-2 text-[11px] text-red-400 break-words">{s.error}</div>}
                 <AnimatePresence initial={false}>
                   {open === s.id && (
                     <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-border">

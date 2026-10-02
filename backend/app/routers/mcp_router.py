@@ -13,6 +13,10 @@ from .. import mcp_client, actions
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
+@router.get("/diagnostics")
+def diagnostics():
+    return mcp_client.diagnostics()
+
 @router.get("/catalog")
 def catalog():
     installed_keys = {s["key"] for s in mcp_client.list_installed() if s["key"]}
@@ -39,8 +43,10 @@ def install(body: InstallBody):
         raise HTTPException(404, "Unknown catalog entry")
     if c["needs_path"] and not (body.path and body.path.strip()):
         raise HTTPException(400, f"{c['name']} needs a folder path.")
+    if not mcp_client.diagnostics()["ready"]:
+        raise HTTPException(409, mcp_client.diagnostics()["error"])
     sid = mcp_client.install(body.key, c["name"], c["package"], [], body.path.strip() if body.path else None, trusted=True)
-    return {"id": sid}
+    return {"id": sid, "installed": True, "note": "Installed. Start the connector to verify its package and MCP handshake."}
 
 class CustomInstallBody(BaseModel):
     name: str
