@@ -17,6 +17,8 @@ import sys
 import threading
 import time
 
+from bootstrap import prepare
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND_DIR = os.path.join(ROOT, "backend")
 FRONTEND_DIR = os.path.join(ROOT, "frontend")
@@ -38,20 +40,21 @@ def _npm_cmd() -> str:
     return npm
 
 def main():
-    print("Starting AI Brain (backend + frontend)... Ctrl+C to stop both.\n")
-
-    backend_venv_python = os.path.join(
-        BACKEND_DIR, ".venv", "Scripts" if IS_WINDOWS else "bin",
-        "python.exe" if IS_WINDOWS else "python",
-    )
-    python_exe = backend_venv_python if os.path.exists(backend_venv_python) else sys.executable
+    print("Starting AI Brain bootstrap...\n")
+    try:
+        python_exe, npm = prepare()
+    except Exception as exc:
+        print(f"Bootstrap failed: {exc}")
+        sys.exit(1)
+    python_exe = str(python_exe)
+    print("\nStarting AI Brain (backend + frontend)... Ctrl+C to stop both.\n")
 
     backend = subprocess.Popen(
         [python_exe, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
         cwd=BACKEND_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
     frontend = subprocess.Popen(
-        [_npm_cmd(), "run", "dev"],
+        [npm, "run", "dev"],
         cwd=FRONTEND_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
 

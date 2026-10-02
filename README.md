@@ -105,15 +105,32 @@ llama-server -m /path/to/agent-model.gguf --port 8082
 The backend never reads, converts, or modifies these files — it only
 talks to these two local, OpenAI-compatible HTTP endpoints.
 
-### Fastest: run everything with one command
+### Fastest: install and run
 
-After the one-time setup below (`pip install -r backend/requirements.txt`, `npm install` in `frontend/`):
+**Windows — one-command install (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/nadeemmhdm/ai-brain-assistant/main/install.ps1 | iex
+```
+
+The installer checks Git, Python 3.10+, and Node.js 18+. On Windows it uses `winget`
+to install missing prerequisites when possible, clones AI Brain into your local app-data
+folder, creates the backend virtual environment, installs Python requirements, and
+installs the locked frontend packages.
+
+After installation, start normally:
 
 ```bash
 python scripts/run_dev.py     # or ./run.sh (macOS/Linux) / run.bat (Windows, double-click)
 ```
 
-This starts the backend and frontend together and stops both on Ctrl+C. Your `llama-server` model processes are started separately (step 1).
+Every launch now runs a lightweight bootstrap first: it checks published GitHub Releases,
+safely fast-forwards a clean git checkout to a newer release tag, repairs missing backend
+packages, and refreshes dependencies when the requirements or lockfile changed. Offline
+startup still works; an unavailable update check never prevents the installed version
+from starting. Local git changes are never overwritten.
+
+Your `llama-server` model processes are still started separately (step 1).
 
 ### 2. Backend
 
