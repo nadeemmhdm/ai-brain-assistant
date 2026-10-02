@@ -39,6 +39,7 @@ export function ModelsView() {
   const search = async () => { setSearching(true); setRepo(null); try { setResults(await api2.hfSearch(q)); } catch (e: any) { toast.error(e.message); } finally { setSearching(false); } };
   const openRepo = async (id: string) => { setRepo(id); setFiles([]); try { setFiles(await api2.hfFiles(id)); } catch (e: any) { toast.error(e.message); } };
   const online = (role: string) => status?.[role]?.online;
+  const modelDownloadRunning = downloads.some((d:any) => d.kind === "model" && d.status === "running");
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -83,9 +84,9 @@ export function ModelsView() {
             await act("upload", async () => { await api2.uploadModel(file); load(); }, `${file.name} imported`);
           }} />
           <div className="flex gap-2 flex-wrap mb-3">
-            <motion.button whileTap={{ scale: 0.96 }} disabled={busy === "upload"} onClick={() => modelFile.current?.click()}
+            <motion.button whileTap={{ scale: 0.96 }} disabled={busy === "upload" || modelDownloadRunning} onClick={() => modelFile.current?.click()}
               className="h-9 px-3 rounded-lg bg-accent text-white text-sm flex items-center gap-2 disabled:opacity-40">
-              {busy === "upload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderInput className="h-4 w-4" />} Select GGUF file
+              {busy === "upload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderInput className="h-4 w-4" />} {modelDownloadRunning ? "Available after download" : "Select GGUF file"}
             </motion.button>
             <span className="text-[11px] text-muted self-center">Choose the downloaded model directly. No path typing required.</span>
           </div>
