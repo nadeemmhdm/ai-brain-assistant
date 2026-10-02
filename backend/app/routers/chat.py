@@ -11,7 +11,7 @@ from typing import Optional, Union
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from .. import db, llm_client, brain, memory, research, identity, actions, verify, google_api, skills, translate
+from .. import db, llm_client, brain, memory, research, identity, actions, verify, google_api, skills, translate, understanding
 from ..config import settings
 from .settings_router import get_value
 
@@ -390,6 +390,13 @@ async def chat(body: ChatRequest):
             memory.add(remembered)
             yield _sse("memory_saved", {"content": remembered})
 
+        # ---- understand the request before retrieval (original text remains authoritative) ----
+        recent_for_understanding, _ = await load_history(body.conversation_id, 3500)
+        agent_online = (await llm_client.check_model_status("agent"))["online"]
+        understood_query = await understanding.clarify_query(user_text, recent_for_understanding, agent_online)
+        if understood_query != understanding.normalize(user_text):
+            yield _sse("status", {"stage": "recall", "detail": "Understanding your request in context…"})
+
         # ---- grounding: search / saved research / brain ----
         blocks: list[str] = []
         sources: list[dict] = []
@@ -401,7 +408,7 @@ async def chat(body: ChatRequest):
             q: asyncio.Queue = asyncio.Queue()
             async def emit(stage, detail, extra=None):
                 await q.put(_sse("status", {"stage": stage, "detail": detail, **(extra or {})}))
-            task = asyncio.create_task(research.run(user_text, mode, emit, online=not body.offline))
+            task = asyncio.create_task(research.run(understood_query, mode, emit, online=not body.offline))
             while not task.done() or not q.empty():
                 try:
                     yield await asyncio.wait_for(q.get(), 0.1)
@@ -414,7 +421,7 @@ async def chat(body: ChatRequest):
                 research_result = {"blocks": [], "sources": [], "from_memory": False, "save": None}
             blocks, sources = research_result["blocks"], research_result["sources"]
         else:
-            hits = [h for h in brain.search_knowledge(user_text, top_k=2) if h["score"] >= research._recall_threshold() + 0.05]
+            hits = [h for h in brain.search_knowledge(understood_query, top_k=3) if h["score"] >= research._recall_threshold() + 0.05]
             if hits:
                 yield _sse("status", {"stage": "recall", "detail": "Using what I've already learned"})
                 for i, h in enumerate(hits, 1):
@@ -438,10 +445,13 @@ async def chat(body: ChatRequest):
             system = persona_prompt(body.voice)
         if remembered:
             system += f"\nThe user just asked you to remember: \"{remembered}\". Confirm briefly. "
-        mems = memory.relevant(user_text)
+        mems = memory.relevant(understood_query)
         if mems:
             system += "\n\nThings the user asked you to remember:\n- " + "\n- ".join(mems)
         grounded = bool(blocks)
+        system += "\n\nAccuracy rules: First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request was addressed and that you did not invent specifics. "
+        if understood_query != understanding.normalize(user_text):
+            system += f"\nRetrieval interpretation (helper only; the original user message remains authoritative): {understood_query}"
         if grounded:
             system += ("\n\nNumbered context from research follows. If it actually answers the question, use it and cite the numbers "
                        "like [1] right after the claims they support. If it is irrelevant or unhelpful (for example the question is basic "
@@ -464,7 +474,7 @@ async def chat(body: ChatRequest):
         splitter = llm_client.ThinkSplitter()
         thinking, answer = "", ""
         started_answer = False
-        async for delta in llm_client.stream_chat(model, messages, level, temperature=0.3 if grounded else None, max_tokens=max_tokens):
+        async for delta in llm_client.stream_chat(model, messages, level, temperature=0.2 if grounded else 0.45, max_tokens=max_tokens):
             if delta.startswith("__ERROR__:"):
                 yield _sse("error", {"message": delta[len("__ERROR__:"):]})
                 return
