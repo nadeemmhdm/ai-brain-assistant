@@ -13,6 +13,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import settings
 from app.db import init_db
 from app.routers import settings_router
@@ -56,6 +57,8 @@ async def lifespan(app: FastAPI):
     await mcp_client.stop_all()
 
 app = FastAPI(title="AI Brain - Local Assistant", version=version.current(), lifespan=lifespan)
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "[::1]"])
 
 app.add_middleware(
     CORSMiddleware,
