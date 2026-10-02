@@ -73,6 +73,7 @@ export const api2 = {
 
   // mcp
   mcpCatalog: () => authFetch(`${BASE}/api/mcp/catalog`).then(j<any[]>),
+  mcpDiagnostics: () => authFetch(`${BASE}/api/mcp/diagnostics`).then(j<any>),
   mcpServers: () => authFetch(`${BASE}/api/mcp/servers`).then(j<any[]>),
   mcpInstall: (key: string, path?: string) => authFetch(`${BASE}/api/mcp/install`, json("POST", { key, path })).then(jAuth),
   mcpInstallCustom: (name: string, command: string, args: string[]) => authFetch(`${BASE}/api/mcp/install-custom`, json("POST", { name, command, args })).then(jAuth),
