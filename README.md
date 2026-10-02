@@ -154,6 +154,27 @@ Open **http://127.0.0.1:5173**. By default it talks only to
 `http://127.0.0.1:8000`; override with `VITE_API_BASE` in a `frontend/.env`
 if you changed the backend port.
 
+## Trusted Topic Learning
+
+Open **AI Brain → Learn a topic** to run the research-to-knowledge pipeline. AI Brain
+combines normal web discovery with free scholarly discovery, ranks source trust,
+requires independent corroboration before marking knowledge verified, and stores
+the resulting answer plus source provenance in the local SQLite Brain. Saved
+knowledge and embeddings remain usable when the machine is offline.
+
+The same Brain features are available from the cross-platform CLI:
+
+```bash
+python scripts/ai_brain_cli.py topics
+python scripts/ai_brain_cli.py learn "network security" --wait
+python scripts/ai_brain_cli.py brain-search "What is zero trust?"
+python scripts/ai_brain_cli.py sources --limit 20
+```
+
+Windows and Linux use the same backend API and Brain database. The CLI deliberately
+uses the API instead of maintaining a second implementation, so Web UI and CLI
+cannot silently diverge.
+
 ## Google (optional)
 
 To use the Gmail/Meet/Sheets/Slides tab:
