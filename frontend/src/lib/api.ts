@@ -60,7 +60,7 @@ export interface Message {
   confidence?: Confidence | null;
 }
 
-export interface Confidence { label: "high" | "medium" | "low"; sources: number; domains: number; best_tier?: string | null; from_memory?: boolean; flagged?: string[] }
+export interface Confidence { percent: number; sources: number; domains: number; best_tier?: string | null; from_memory?: boolean; flagged?: string[]; basis?: string }
 export interface ActionProposal {
   action: string; label: string; risk: "read" | "write" | "external" | "destructive";
   params: Record<string, any>; status: "pending" | "approved" | "denied" | "done" | "failed"; note?: string | null;
