@@ -8,7 +8,7 @@ for final knowledge synthesis and conflict explanations.
 """
 import asyncio
 import json
-from . import db, search, brain, llm_client, research
+from . import db, search, brain, llm_client, research, scholarly
 
 SESSIONS: dict[str, dict] = {}  # session_id -> live progress state (in-memory)
 
@@ -17,7 +17,7 @@ def _new_state(topic: str) -> dict:
         "topic": topic, "status": "running", "current_task": "Planning topic...",
         "progress_pct": 0, "subtopics": [], "questions_total": 0, "questions_done": 0,
         "sources_found": 0, "pages_processed": 0, "knowledge_items": 0,
-        "verified_items": 0, "conflicts": 0, "control": "run",  # run|pause|cancel
+        "verified_items": 0, "conflicts": 0, "authoritative_sources": 0, "scholarly_sources": 0, "control": "run",  # run|pause|cancel
     }
 
 async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
@@ -76,18 +76,39 @@ async def run_auto_learn(session_id: str, topic: str):
 
             state["current_task"] = f"Researching: {question}"
             results = await asyncio.to_thread(search.search, question, "duckduckgo", search_top_n())
+            academic = await asyncio.to_thread(scholarly.discover, question, 4)
+            # Scholarly APIs complement normal web discovery. Prefer authoritative
+            # evidence, but preserve independent domains for corroboration.
+            known = {r.get("url") for r in results}
+            results.extend(r for r in academic if r.get("url") not in known)
+            for r in results:
+                if "trust_tier" not in r:
+                    r["trust_tier"], r["source_type"] = search.classify_source(r.get("url", ""))
+            results.sort(key=lambda r: ("ABCD".index(r.get("trust_tier", "C")), 0 if r.get("provider") else 1))
             state["sources_found"] += len(results)
+            state["scholarly_sources"] += len(academic)
 
             collected = []
             for r in results:
                 if not r.get("url"):
                     continue
                 page = await asyncio.to_thread(search.fetch_and_extract, r["url"])
+                if not page and r.get("snippet"):
+                    # Structured scholarly APIs often expose an abstract while the
+                    # publisher page itself is paywalled. Store the API evidence
+                    # with explicit provenance instead of pretending it is full text.
+                    import hashlib, time
+                    text = search.sanitize_webpage_content(r["snippet"])
+                    page = {"url": r["url"], "text": text, "trust_tier": r.get("trust_tier", "A"),
+                            "source_type": r.get("source_type", "scholarly metadata"),
+                            "content_hash": hashlib.sha256(text.encode()).hexdigest(), "fetched_at": time.time()}
                 if not page:
                     continue
                 state["pages_processed"] += 1
+                if page["trust_tier"] == "A":
+                    state["authoritative_sources"] += 1
                 sid = research._source_row(page["url"], r.get("title"), page["trust_tier"], page["source_type"], page["content_hash"], page["fetched_at"])
-                collected.append({**page, "id": sid, "title": r.get("title")})
+                collected.append({**page, "id": sid, "title": r.get("title"), "provider": r.get("provider")})
 
             if not collected:
                 state["questions_done"] += 1
@@ -118,7 +139,11 @@ async def run_auto_learn(session_id: str, topic: str):
                 state["questions_done"] += 1
                 continue
             conflict = None
-            verification = "verified" if len(collected) >= 2 else "unverified"
+            from urllib.parse import urlparse
+            independent_domains = {urlparse(x["url"]).netloc.lower().removeprefix("www.") for x in collected}
+            trusted = [x for x in collected if x.get("trust_tier") in ("A", "B")]
+            # "verified" now requires corroboration, not merely two pages.
+            verification = "verified" if len(independent_domains) >= 2 and len(trusted) >= 2 else "unverified"
             if "conflict" in synthesis.lower() or "disagree" in synthesis.lower():
                 verification = "conflict"
                 conflict = {"note": "Model flagged disagreement between sources; see answer text."}
