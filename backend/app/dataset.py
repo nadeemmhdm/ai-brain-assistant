@@ -67,3 +67,20 @@ def export_jsonl(dataset_id: str, approved_only: bool = True) -> list[dict]:
     if approved_only:
         items = [i for i in items if i["approved"]]
     return [{"instruction": i["instruction"], "input": i["input"], "output": i["output"]} for i in items]
+
+
+def clone_dataset(dataset_id: str, name_suffix: str = " · cloud refined") -> dict:
+    """Create a derived local dataset so cloud refinement never overwrites the reviewed original."""
+    with db.get_conn() as conn:
+        src = conn.execute("SELECT * FROM datasets WHERE id=?", (dataset_id,)).fetchone()
+        if not src:
+            raise ValueError("Unknown dataset")
+        did = db.new_id()
+        name = f"{src['name']}{name_suffix}"
+        conn.execute("INSERT INTO datasets (id,name,topic,status,created_at) VALUES (?,?,?,?,?)",
+                     (did, name, src["topic"], "draft", db.now()))
+        rows = conn.execute("SELECT * FROM dataset_items WHERE dataset_id=? AND approved=1", (dataset_id,)).fetchall()
+        for row in rows:
+            conn.execute("INSERT INTO dataset_items (id,dataset_id,instruction,input,output,approved,source_knowledge_id) VALUES (?,?,?,?,?,?,?)",
+                         (db.new_id(), did, row["instruction"], row["input"], row["output"], 1, row["source_knowledge_id"]))
+    return {"id": did, "name": name, "item_count": len(rows), "source_dataset_id": dataset_id}

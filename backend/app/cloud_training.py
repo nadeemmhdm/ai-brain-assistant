@@ -83,7 +83,11 @@ def refine_example(instruction:str,input_text:str,output:str)->str:
     if not text: raise RuntimeError("Cloud teacher returned an empty response")
     return text[:16000]
 
-def distill_dataset(dataset_id:str)->dict:
+def distill_dataset(dataset_id:str, create_copy:bool=True)->dict:
+    source_dataset_id = dataset_id
+    derived = dataset.clone_dataset(dataset_id) if create_copy else None
+    if derived:
+        dataset_id = derived["id"]
     records=dataset.export_jsonl(dataset_id)
     if not records: raise RuntimeError("Dataset has no approved items")
     changed=0
@@ -94,4 +98,5 @@ def distill_dataset(dataset_id:str)->dict:
         with db.get_conn() as conn:
             conn.execute("UPDATE dataset_items SET output=? WHERE id=?",(improved,item["id"]))
         changed+=1
-    return {"ok":True,"dataset_id":dataset_id,"refined_items":changed,"stored":"local"}
+    return {"ok":True,"dataset_id":dataset_id,"source_dataset_id":source_dataset_id,"derived_dataset":bool(derived),
+            "refined_items":changed,"stored":"local","provider":status()["active_provider"]}
