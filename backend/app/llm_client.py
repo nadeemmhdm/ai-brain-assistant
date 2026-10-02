@@ -34,10 +34,19 @@ def _model_url(which: str) -> str:
 def _model_name(which: str) -> str:
     return settings.main_model_name if which == "main" else settings.agent_model_name
 
-def build_system_prompt(base_prompt: str, reasoning_level: str) -> str:
+def build_system_prompt(base_prompt: str, reasoning_level: str, model: str = "agent") -> str:
     cfg = settings.reasoning_levels.get(reasoning_level, settings.reasoning_levels[settings.default_reasoning_level])
-    if cfg["think"]:
+    # Main GGUFs vary widely in their native reasoning/chat templates. Forcing
+    # synthetic <thinking> tags can consume the entire generation budget and
+    # leave no visible answer. Keep reasoning levels as sampling/token controls
+    # for main; reserve the legacy tagged scratchpad protocol for the small agent.
+    if cfg["think"] and model == "agent":
         return base_prompt + THINK_SYSTEM_SUFFIX.format(budget=cfg["think_budget"])
+    if cfg["think"] and model == "main":
+        return base_prompt + (
+            "\n\nReason carefully before answering, but output only the final user-visible answer. "
+            "Do not emit <thinking> tags or hidden scratchpad text."
+        )
     return base_prompt
 
 def split_thinking(raw_text: str) -> tuple[Optional[str], str]:
