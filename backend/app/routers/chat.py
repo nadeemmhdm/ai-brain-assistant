@@ -511,6 +511,17 @@ async def chat(body: ChatRequest):
             else:
                 answer, thinking = thinking, ""   # last resort: still show something rather than nothing
         answer = answer.strip()
+        if not answer:
+            # Never persist/send an invisible assistant message. Some local model
+            # templates can finish without a content delta even though generation ran.
+            fallback = await llm_client.complete(
+                model,
+                [{"role": "system", "content": "Reply directly to the user in one short helpful message. Output visible answer text only."},
+                 {"role": "user", "content": user_text}],
+                "off",
+            )
+            answer = fallback.strip() or "I couldn't produce a visible reply. Please try again, or switch the reasoning level to Off and retry."
+            yield _sse("delta", {"text": answer})
 
         # drop citation numbers that don't exist
         valid = {s["index"] for s in sources if s.get("index")}
