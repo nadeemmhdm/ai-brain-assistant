@@ -61,3 +61,20 @@ before any public disclosure.
 - Issues in third-party dependencies (`llama.cpp`, DuckDuckGo, etc.) —
   please report those upstream, though a note here linking to the report
   is welcome.
+
+
+## Data-leakage controls
+
+The application deliberately minimizes data exposed outside the backend:
+
+- OAuth and Hugging Face secrets are stored server-side; persistent OAuth tokens are encrypted by the local vault.
+- Session tokens are browser-session scoped and expire server-side.
+- Model APIs return model names and status, not absolute local filesystem paths.
+- Web research rejects private, loopback, link-local, reserved and multicast destinations and re-checks redirect targets.
+- The backend accepts only localhost Host headers by default.
+- Vault keys, runtime logs, SQLite WAL/SHM files, environment files and common private-key formats are excluded from Git.
+- OAuth callback text is HTML-escaped and cross-window notification is restricted to the callback origin.
+
+### Local data at rest
+
+Chat history, Brain knowledge and other non-secret application data live in the local SQLite database. The vault encrypts credentials/tokens, but the whole SQLite database is **not** application-level encrypted. Protect the operating-system account and disk (for example, BitLocker/FileVault/LUKS) when local-at-rest confidentiality is required.
