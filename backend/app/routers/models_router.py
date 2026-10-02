@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
-from .. import llm_client, model_manager, downloads, vault
+from .. import llm_client, model_manager, downloads, vault, errors
 from ..config import settings
 
 router = APIRouter(prefix="/api/model", tags=["model"])
@@ -32,7 +32,7 @@ def load(body: LoadBody):
     try:
         return model_manager.load(body.role, body.filename)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise errors.http(400, "AIB-MDL-002", str(e))
 
 @router.post("/unload")
 def unload(body: LoadBody):
@@ -44,16 +44,16 @@ def hf_search(q: str):
     try:
         return model_manager.hf_search(q)
     except httpx.HTTPError as e:
-        raise HTTPException(502, f"Could not reach Hugging Face (are you online?): {e}")
+        raise errors.http(502, "AIB-MDL-003", f"Could not reach Hugging Face: {e}")
 
 @router.get("/hf/files")
 def hf_files(repo: str):
     try:
         return model_manager.hf_files(repo)
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise errors.http(400, "AIB-MDL-002", str(e))
     except httpx.HTTPError as e:
-        raise HTTPException(502, f"Could not reach Hugging Face (are you online?): {e}")
+        raise errors.http(502, "AIB-MDL-003", f"Could not reach Hugging Face: {e}")
 
 class HFDownloadBody(BaseModel):
     repo: str
@@ -64,7 +64,7 @@ def hf_download(body: HFDownloadBody):
     try:
         return {"download_id": model_manager.hf_download(body.repo, body.filename)}
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise errors.http(400, "AIB-MDL-002", str(e))
 
 @router.get("/downloads")
 def list_downloads(kind: str | None = None):
@@ -86,7 +86,7 @@ def import_model(body: ImportModelBody):
     try:
         return model_manager.import_model(body.path, body.mode)
     except (ValueError, OSError) as e:
-        raise HTTPException(400, str(e))
+        raise errors.http(400, "AIB-MDL-002", str(e))
 
 class RemoveImportBody(BaseModel):
     filename: str
@@ -108,13 +108,13 @@ def hf_token_status():
 def hf_token_set(body: HFTokenBody):
     tok = body.token.strip()
     if not tok.startswith("hf_") or len(tok) < 20 or len(tok) > 200:
-        raise HTTPException(400, "That doesn't look like a Hugging Face token (they start with hf_).")
+        raise errors.http(400, "AIB-MDL-004", "That doesn't look like a Hugging Face token.")
     try:
         r = httpx.get("https://huggingface.co/api/whoami-v2", headers={"Authorization": f"Bearer {tok}"}, timeout=10)
     except httpx.HTTPError:
-        raise HTTPException(502, "Couldn't reach Hugging Face to check the token — are you online?")
+        raise errors.http(502, "AIB-MDL-003", "Couldn't reach Hugging Face to check the token.")
     if r.status_code != 200:
-        raise HTTPException(400, "Hugging Face rejected that token.")
+        raise errors.http(400, "AIB-MDL-004", "Hugging Face rejected that token.")
     try:
         vault.put("hf_token", tok)
     except RuntimeError as e:
