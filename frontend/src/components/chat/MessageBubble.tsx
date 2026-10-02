@@ -112,11 +112,9 @@ export function MessageBubble({
         )}
 
         {!isUser && message.confidence && (
-          <span title={`${message.confidence.sources} source(s) from ${message.confidence.domains} site(s)`}
-            className={cn("mt-1.5 mr-2 inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 border",
-              message.confidence.label === "high" ? "text-emerald-500 border-emerald-500/40"
-              : message.confidence.label === "medium" ? "text-amber-500 border-amber-500/40" : "text-red-400 border-red-400/40")}>
-            <ShieldCheck className="h-3 w-3" /> {message.confidence.label} confidence
+          <span title={`${message.confidence.sources} source(s) from ${message.confidence.domains} site(s). ${message.confidence.basis || "Evidence-based estimate; not a guarantee of correctness."}`}
+            className="mt-1.5 mr-2 inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 border border-border text-muted">
+            <ShieldCheck className="h-3 w-3" /> {Math.max(0, Math.min(100, message.confidence.percent ?? 0))}% confidence
           </span>
         )}
         {!isUser && message.action && onDecideAction && (
