@@ -7,8 +7,8 @@ export interface StageInfo { stage: string; detail?: string; done?: number; tota
 export interface LiveState { stages: StageInfo[]; thinking: string; startedAt: number }
 
 interface AppState {
-  theme: "dark" | "light";
-  setTheme: (t: "dark" | "light") => void;
+  theme: "dark" | "light" | "system";
+  setTheme: (t: "dark" | "light" | "system") => void;
 
   reasoningLevel: ReasoningLevel;
   setReasoningLevel: (r: ReasoningLevel) => void;
@@ -58,14 +58,17 @@ interface AppState {
 }
 export const MAX_QUEUED_MESSAGES = 5;
 
-const savedTheme = (ls("theme", "dark") as "dark" | "light");
-document.documentElement.setAttribute("data-theme", savedTheme);
+const savedTheme = (ls("theme", "system") as "dark" | "light" | "system");
+const systemTheme = () => window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+const applyTheme = (t: "dark" | "light" | "system") => document.documentElement.setAttribute("data-theme", t === "system" ? systemTheme() : t);
+applyTheme(savedTheme);
+if (savedTheme === "system") window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => applyTheme("system"));
 const legacySearch = localStorage.getItem("searchMode");
 const initialSearch: SearchMode = legacySearch === "true" ? "quick" : (["off", "quick", "deep"].includes(legacySearch || "") ? (legacySearch as SearchMode) : "off");
 
 export const useAppStore = create<AppState>((set) => ({
   theme: savedTheme,
-  setTheme: (t) => { document.documentElement.setAttribute("data-theme", t); localStorage.setItem("theme", t); set({ theme: t }); },
+  setTheme: (t) => { applyTheme(t); localStorage.setItem("theme", t); set({ theme: t }); },
 
   reasoningLevel: ls("reasoningLevel", "medium") as ReasoningLevel,
   setReasoningLevel: (r) => { localStorage.setItem("reasoningLevel", r); set({ reasoningLevel: r }); },
