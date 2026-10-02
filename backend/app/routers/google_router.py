@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
+from html import escape
 from pydantic import BaseModel
 from .. import google_api as g, actions
 
@@ -23,12 +24,12 @@ def connect():
 @public.get("/callback")
 def callback(code: str | None = None, state: str | None = None, error: str | None = None):
     if error or not code or not state:
-        return HTMLResponse(f"<h3>Google sign-in was cancelled.</h3><p>{error or ''}</p>You can close this tab.", status_code=400)
+        return HTMLResponse(f"<h3>Google sign-in was cancelled.</h3><p>{escape(error or '')}</p>You can close this tab.", status_code=400)
     try:
         g.handle_callback(code, state)
     except g.GoogleError as e:
-        return HTMLResponse(f"<h3>Couldn't connect Google</h3><p>{e}</p>", status_code=400)
-    return HTMLResponse("<script>window.opener&&window.opener.postMessage('google-connected','*');window.close()</script>"
+        return HTMLResponse(f"<h3>Couldn't connect Google</h3><p>{escape(str(e))}</p>", status_code=400)
+    return HTMLResponse("<script>window.opener&&window.opener.postMessage('google-connected',window.location.origin);window.close()</script>"
                         "<h3>✅ Google connected.</h3>You can close this tab and return to the app.")
 
 @router.post("/disconnect")
