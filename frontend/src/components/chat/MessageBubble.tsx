@@ -52,14 +52,14 @@ export function MessageBubble({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 12, scale: .985 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 320, damping: 28 }}
-      className={cn("group flex w-full gap-3 px-2 py-3", isUser ? "justify-end" : "justify-start")}
+      className={cn("group flex w-full gap-3 px-3 sm:px-4 py-3.5", isUser ? "justify-end" : "justify-start")}
     >
-      <div className={cn("max-w-[85%] sm:max-w-[70%]", isUser && "flex flex-col items-end")}>
+      <div className={cn("max-w-[92%] sm:max-w-[78%]", isUser && "flex flex-col items-end")}>
         {!isUser && isStreaming && message.content && live?.thinking && (
-          <div className="mb-1 text-[11px] text-muted italic">💭 {aiName} thought about this for {Math.max(1, Math.round((Date.now() - live.startedAt) / 1000))}s…</div>
+          <div className="mb-1 text-[11px] text-muted italic">{aiName} has been working for {Math.max(1, Math.round((Date.now() - live.startedAt) / 1000))}s…</div>
         )}
         {!isUser && message.thinking && (
           <div className="mb-1.5">
@@ -68,7 +68,7 @@ export function MessageBubble({
               className="flex items-center gap-1 text-xs text-muted hover:text-ink"
             >
               {showThinking ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              Thought process
+              Model activity
             </button>
             {showThinking && (
               <div className="mt-1 rounded-md border border-border bg-surface-2 p-2.5 text-xs text-muted whitespace-pre-wrap">
@@ -91,8 +91,8 @@ export function MessageBubble({
         ) : (
           <div
             className={cn(
-              "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-              isUser ? "bg-accent text-white" : "bg-surface-2 text-ink border border-border"
+              "message-surface rounded-2xl px-4 py-3 text-sm leading-relaxed",
+              isUser ? "user-message bg-accent text-white" : "assistant-message bg-surface-2 text-ink border border-border"
             )}
           >
             {isStreaming && !message.content ? (

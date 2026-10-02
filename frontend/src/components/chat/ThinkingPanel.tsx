@@ -11,7 +11,7 @@ const ICON: Record<string, any> = {
 /** The animated "Nila is thinking…" message: live steps + the model's reasoning as it streams. */
 export function ThinkingPanel({ live, name }: { live?: LiveState; name: string }) {
   const [secs, setSecs] = useState(0);
-  const [showReasoning, setShowReasoning] = useState(true);
+  const [showReasoning, setShowReasoning] = useState(false);
   useEffect(() => {
     const t = setInterval(() => setSecs(Math.floor((Date.now() - (live?.startedAt || Date.now())) / 1000)), 500);
     return () => clearInterval(t);
@@ -26,12 +26,12 @@ export function ThinkingPanel({ live, name }: { live?: LiveState; name: string }
   const current = stages[stages.length - 1];
 
   return (
-    <div className="min-w-[220px]">
+    <div className="min-w-[240px] rounded-xl bg-surface/50 p-1">
       <div className="flex items-center gap-2 text-sm">
         <motion.span animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 2.2 }}>
           <Brain className="h-4 w-4 text-accent" />
         </motion.span>
-        <span className="think-shimmer font-medium">{current?.stage === "writing" ? `${name} is writing` : `${name} is thinking`}</span>
+        <span className="think-shimmer font-medium">{current?.stage === "writing" ? `${name} is composing` : `${name} is working on it`}</span>
         <span className="flex items-center gap-0.5">
           {[0, 1, 2].map((i) => <span key={i} className="think-dot h-1 w-1 rounded-full bg-accent inline-block" />)}
         </span>

@@ -54,3 +54,17 @@ body { background: var(--canvas); color: var(--ink); }
   color: transparent;
   animation: shimmer 2.2s linear infinite;
 }
+
+/* Chat experience refresh */
+.chat-scroll{scroll-behavior:smooth;background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--accent) 5%,transparent),transparent 34%)}
+.composer-dock{background:linear-gradient(to top,var(--canvas) 76%,color-mix(in srgb,var(--canvas) 86%,transparent));backdrop-filter:blur(14px)}
+.message-surface{box-shadow:0 8px 28px rgba(0,0,0,.08);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+.assistant-message:hover{border-color:color-mix(in srgb,var(--accent) 35%,var(--border));box-shadow:0 12px 34px rgba(0,0,0,.11)}
+.user-message{box-shadow:0 9px 24px color-mix(in srgb,var(--accent) 16%,transparent)}
+.ai-status-chip{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border:1px solid var(--border);border-radius:999px;background:color-mix(in srgb,var(--surface) 82%,transparent);font-size:.78rem;box-shadow:0 8px 24px rgba(0,0,0,.07)}
+.welcome-orb{width:58px;height:58px;margin:0 auto 18px;border-radius:18px;display:grid;place-items:center;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 28%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 13%,var(--surface)),var(--surface));box-shadow:0 16px 44px color-mix(in srgb,var(--accent) 12%,transparent)}
+.welcome-pills{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:20px}.welcome-pills span{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font-size:11px;background:var(--surface)}
+.sidebar-shell{filter:drop-shadow(12px 0 26px rgba(0,0,0,.08))}
+.prose-chat p{margin:.2rem 0 .65rem}.prose-chat p:last-child{margin-bottom:.15rem}.prose-chat pre{overflow:auto;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--canvas)}.prose-chat code{font-size:.9em}
+@media(max-width:640px){.message-surface{box-shadow:none}.welcome-state{min-height:52vh;display:flex;flex-direction:column;justify-content:center}.composer-dock{padding-left:8px;padding-right:8px}.message-actions{opacity:.72}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

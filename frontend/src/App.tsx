@@ -17,6 +17,7 @@ import { McpView } from "@/components/views/McpView";
 import { Toaster } from "@/components/ui/Toaster";
 import { toast } from "@/store/useToast";
 import { motion, AnimatePresence } from "motion/react";
+import { Sparkles, Brain, Search, GraduationCap } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { api, streamChat, getSessionToken, setUnauthorizedHandler, type Conversation, type Message } from "@/lib/api";
 import { api2 } from "@/lib/api2";
@@ -281,9 +282,9 @@ export default function App() {
         <AnimatePresence initial={false}>
           {sidebarOpen && (
             <motion.div
-              initial={{ width: 0 }} animate={{ width: 256 }} exit={{ width: 0 }}
-              transition={{ type: "spring", stiffness: 340, damping: 34 }}
-              className="overflow-hidden flex-shrink-0"
+              initial={{ width: 0, opacity: 0, x: -18 }} animate={{ width: 256, opacity: 1, x: 0 }} exit={{ width: 0, opacity: 0, x: -18 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30, mass: .75 }}
+              className="overflow-hidden flex-shrink-0 sidebar-shell"
             >
               <div className="w-64 h-full">
                 <Sidebar
@@ -304,17 +305,18 @@ export default function App() {
           sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll">
           <div className="max-w-3xl mx-auto w-full py-4">
             {messages.length === 0 && (
-              <div className="text-center py-24 px-4">
-                <h2 className="text-2xl font-serif font-light text-muted">
-                  What would you like to know?
-                </h2>
-                <p className="text-xs text-muted mt-2">
-                  Turn on Search for cited, trust-ranked answers, or run Auto Learn to build up the offline AI Brain.
-                </p>
-              </div>
+              <motion.div initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} className="welcome-state text-center py-16 sm:py-24 px-5">
+                <motion.div animate={{y:[0,-5,0],rotate:[0,2,-2,0]}} transition={{repeat:Infinity,duration:4,ease:"easeInOut"}} className="welcome-orb"><Sparkles className="h-6 w-6"/></motion.div>
+                <p className="text-xs uppercase tracking-[.22em] text-accent mb-3">Local personal intelligence</p>
+                <h2 className="text-3xl sm:text-4xl font-serif font-light text-ink">Hello. I’m {aiName}.</h2>
+                <p className="text-sm text-muted mt-3 max-w-xl mx-auto">Ask naturally. I can use your local Brain offline, reason with your selected model, or research the web when you explicitly enable Search.</p>
+                <div className="welcome-pills">
+                  <span><Brain className="h-3.5 w-3.5"/>Offline Brain</span><span><Search className="h-3.5 w-3.5"/>Optional research</span><span><GraduationCap className="h-3.5 w-3.5"/>Trusted learning</span>
+                </div>
+              </motion.div>
             )}
             {messages.map((m) => (
               <MessageBubble
@@ -336,7 +338,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="px-4 pb-4 pt-2 border-t border-border">
+        <div className="composer-dock px-3 sm:px-4 pb-3 sm:pb-4 pt-2 border-t border-border">
           <QueueStrip queue={messageQueue} onRemove={removeQueuedMessage} onEdit={editQueuedMessage} onForceSend={forceSendQueued} />
           <ChatComposer
             onSend={(text) => {

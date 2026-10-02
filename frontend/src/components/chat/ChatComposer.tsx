@@ -47,13 +47,13 @@ function Dropdown<T extends string>({
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="h-8 px-2.5 rounded-md text-xs font-medium text-muted hover:text-ink hover:bg-surface-2 flex items-center gap-1"
+        className="h-8 px-2.5 rounded-lg text-xs font-medium text-muted hover:text-ink hover:bg-surface flex items-center gap-1 transition-colors"
       >
         {renderLabel(current)}
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className={cn("absolute bottom-full mb-2 w-64 bg-surface border border-border rounded-lg shadow-xl z-20 p-1.5", align === "left" ? "left-0" : "right-0")}>
+        <motion.div initial={{opacity:0,y:6,scale:.98}} animate={{opacity:1,y:0,scale:1}} transition={{duration:.16}} className={cn("absolute bottom-full mb-2 w-64 bg-surface border border-border rounded-lg shadow-xl z-20 p-1.5", align === "left" ? "left-0" : "right-0")}>
           {options.map((opt) => (
             <button
               key={opt.id}
@@ -70,7 +70,7 @@ function Dropdown<T extends string>({
               {opt.id === value && <Check className="h-3.5 w-3.5 text-accent flex-shrink-0" />}
             </button>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -128,7 +128,7 @@ export function ChatComposer({
 
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="bg-surface-2 border border-border rounded-xl shadow-lg flex flex-col">
+      <div className="bg-surface-2/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl flex flex-col transition-shadow focus-within:shadow-2xl focus-within:border-accent/40">
         <textarea
           ref={ref}
           value={message}
