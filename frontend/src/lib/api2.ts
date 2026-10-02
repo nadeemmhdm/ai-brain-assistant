@@ -28,6 +28,10 @@ export const api2 = {
   loadModel: (role: string, filename: string) => authFetch(`${BASE}/api/model/load`, json("POST", { role, filename })).then(jAuth),
   unloadModel: (role: string) => authFetch(`${BASE}/api/model/unload`, json("POST", { role, filename: "" })).then(jAuth),
   importModel: (path: string, mode: "link" | "copy") => authFetch(`${BASE}/api/model/import`, json("POST", { path, mode })).then(jAuth),
+  uploadModel: async (file: File) => {
+    const res = await authFetch(`${BASE}/api/model/import/upload`, { method: "POST", headers: { "X-Model-Filename": file.name }, body: file });
+    return jAuth(res);
+  },
   removeImport: (filename: string) => authFetch(`${BASE}/api/model/import/remove`, json("POST", { filename })),
   hfSearch: (q: string) => authFetch(`${BASE}/api/model/hf/search?q=${encodeURIComponent(q)}`).then(jAuth),
   hfFiles: (repo: string) => authFetch(`${BASE}/api/model/hf/files?repo=${encodeURIComponent(repo)}`).then(jAuth),
