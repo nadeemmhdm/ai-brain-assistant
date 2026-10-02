@@ -176,7 +176,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         ch = _chunks(page["text"]) or [page["text"][:700]]
         vecs = brain.embed_many(ch)
         for c, v in zip(ch, vecs):
-            score = 0.7 * brain.cosine(qvec, v) + 0.3 * _lexical(question, c) + TIER_BONUS.get(page["trust_tier"], 0)
+            score = 0.62 * brain.cosine(qvec, v) + 0.38 * _lexical(question, c) + TIER_BONUS.get(page["trust_tier"], 0)
             cands.append((score, pi, c))
     cands.sort(key=lambda x: x[0], reverse=True)
 
