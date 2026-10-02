@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GraduationCap, Pause, Play, Ban } from "lucide-react";
+import { GraduationCap, Pause, Play, Ban, ShieldCheck, BookOpenCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/store/useToast";
@@ -47,14 +47,15 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal open onClose={onClose} title="Auto Learn" maxWidth="max-w-md"
+    <Modal open onClose={onClose} title="Trusted Topic Learning" maxWidth="max-w-md"
       icon={<GraduationCap className="h-4 w-4 text-accent" />}>
       <div>
         {!sessionId ? (
           <>
             <p className="text-xs text-muted mb-3">
-              Give the AI a topic. It will plan subtopics, research trusted sources online,
-              cross-check facts, and add verified knowledge to the local AI Brain for offline use.
+              Give AI a topic. It researches authoritative web and scholarly sources, cross-checks
+              independent evidence, and stores provenance-backed knowledge in the local AI Brain.
+              Once learned, that knowledge remains available for fast offline retrieval.
             </p>
             <input
               value={topic}
@@ -63,7 +64,7 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
               className="w-full rounded-md bg-surface-2 border border-border px-3 py-2 text-sm mb-3 focus:outline-none focus:border-accent"
             />
             <Button onClick={start} disabled={!topic.trim() || starting} className="w-full">
-              {starting ? "Starting…" : "Start learning"}
+              {starting ? "Starting…" : "Research & learn"}
             </Button>
             {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
           </>
@@ -77,6 +78,8 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
             {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <MiniStat label="Sources" value={status?.sources_found} />
+              <MiniStat label="Trusted" value={status?.authoritative_sources} />
+              <MiniStat label="Scholarly" value={status?.scholarly_sources} />
               <MiniStat label="Pages" value={status?.pages_processed} />
               <MiniStat label="Knowledge" value={status?.knowledge_items} />
               <MiniStat label="Verified" value={status?.verified_items} />
