@@ -161,13 +161,35 @@ def _render_with_browser(url: str) -> Optional[str]:
     except Exception:
         return None
 
+def _safe_fetch(url: str, max_redirects: int = 4) -> str | None:
+    """Fetch while re-validating every redirect target against the SSRF guard."""
+    current = url
+    headers = {"User-Agent": settings.user_agent, "Accept": "text/html,application/xhtml+xml"}
+    with httpx.Client(timeout=15, follow_redirects=False, headers=headers) as client:
+        for _ in range(max_redirects + 1):
+            if not is_public_http_url(current):
+                return None
+            r = client.get(current)
+            if r.status_code in (301, 302, 303, 307, 308):
+                loc = r.headers.get("location")
+                if not loc:
+                    return None
+                from urllib.parse import urljoin
+                current = urljoin(current, loc)
+                continue
+            r.raise_for_status()
+            if len(r.content) > 5_000_000:
+                return None
+            return r.text
+    return None
+
 def fetch_and_extract(url: str) -> Optional[dict]:
     """Fetch a page and extract clean text, respecting robots.txt and rate limits.
-    All extracted text is treated as untrusted data -- see sanitize_webpage_content."""
+    Every redirect is SSRF-checked; extracted text remains untrusted data."""
     if not is_public_http_url(url) or not _robots_allowed(url):
         return None
     try:
-        downloaded = trafilatura.fetch_url(url)
+        downloaded = _safe_fetch(url)
         text = trafilatura.extract(downloaded, include_comments=False, include_tables=False) if downloaded else None
         if not text or len(text) < 400:  # empty/JS-rendered page -> try the optional browser
             html = _render_with_browser(url)
