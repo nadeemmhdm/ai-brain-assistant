@@ -129,14 +129,31 @@ async def stream_chat(
             f"--port {url.rsplit(':', 1)[-1]}"
         )
 
-async def complete(which: str, messages: list[dict], reasoning_level: str) -> str:
-    """Non-streaming helper, used by the research agent for small tasks."""
+async def complete(which: str, messages: list[dict], reasoning_level: str, max_tokens: Optional[int] = None) -> str:
+    """Non-streaming helper. Optional token cap is useful for recovery calls."""
     chunks = []
-    async for delta in stream_chat(which, messages, reasoning_level):
+    async for delta in stream_chat(which, messages, reasoning_level, max_tokens=max_tokens):
         if delta.startswith("__ERROR__:"):
             return ""
         chunks.append(delta)
     return "".join(chunks)
+
+async def recover_visible_answer(which: str, user_text: str, *, context: str = "") -> str:
+    """Recover from GGUF/chat-template runs that finish with no visible content.
+
+    Keep the selected model: never silently replace Main with Fast. The retry uses
+    a short direct-answer prompt and a bounded generation budget, which is more
+    compatible with small local instruct/reasoning templates.
+    """
+    prompt = user_text[:6000]
+    if context.strip():
+        prompt += "\n\nRelevant context:\n" + context[-3000:]
+    messages = [
+        {"role": "system", "content": "Answer the user directly. Output normal visible answer text only. "
+                                      "Do not output reasoning tags, analysis tags, empty content, or a preamble."},
+        {"role": "user", "content": prompt},
+    ]
+    return (await complete(which, messages, "off", max_tokens=512)).strip()
 
 
 class ThinkSplitter:
