@@ -87,8 +87,8 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
               <MiniStat label="Pages" value={status?.pages_processed} />
               <MiniStat label="Knowledge" value={status?.knowledge_items} />
               <MiniStat label="Verified" value={status?.verified_items} />
-              <MiniStat label="Conflicts" value={status?.conflicts} />
-              <MiniStat label="Fallbacks" value={status?.synthesis_fallbacks} />
+              <MiniStat label="Rejected" value={status?.rejected_items} />
+              <MiniStat label="Stage" value={status?.learning_stage} />
               <MiniStat label="Status" value={status?.status} />
             </div>
             {status?.status === "running" && (

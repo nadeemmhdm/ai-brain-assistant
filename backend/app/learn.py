@@ -17,7 +17,7 @@ def _new_state(topic: str) -> dict:
         "topic": topic, "status": "running", "current_task": "Planning topic...",
         "progress_pct": 0, "subtopics": [], "questions_total": 0, "questions_done": 0,
         "sources_found": 0, "pages_processed": 0, "knowledge_items": 0,
-        "verified_items": 0, "conflicts": 0, "entity_type": None, "research_scope": [], "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
+        "verified_items": 0, "conflicts": 0, "rejected_items": 0, "learning_stage": 1, "entity_type": None, "research_scope": [], "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
     }
 
 async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
@@ -102,19 +102,26 @@ async def run_auto_learn(session_id: str, topic: str):
         state["questions_total"] = len(all_questions)
         state["progress_pct"] = 20
 
+        verified_context: list[str] = []
+        # Stage 1 establishes the subject. Later questions are grounded by facts
+        # already verified in this same session instead of free-associating.
         for sub, question in all_questions:
             if state["control"] == "cancel":
                 raise asyncio.CancelledError()
             while state["control"] == "pause":
                 await asyncio.sleep(0.5)
 
-            state["current_task"] = f"Researching: {question}"
+            state["current_task"] = f"Stage {state['learning_stage']} · verifying: {question}"
+            grounded_question = question
+            if verified_context:
+                learned = " | ".join(verified_context[-6:])
+                grounded_question = f"{question} Previously verified facts about {topic}: {learned}"
             # Discover and independently fetch original authoritative pages. Search ranking
             # is discovery only; it is never treated as truth by itself.
-            trusted_pages = await asyncio.to_thread(trusted_search.collect, question, search_top_n() * 2, min(6, search_top_n()))
+            trusted_pages = await asyncio.to_thread(trusted_search.collect, grounded_question, search_top_n() * 2, min(6, search_top_n()))
             results = [{"url": p["url"], "title": p.get("title"), "trust_tier": p["trust_tier"],
                         "source_type": p["source_type"], "_trusted_page": p} for p in trusted_pages]
-            academic = await asyncio.to_thread(scholarly.discover, question, 4)
+            academic = await asyncio.to_thread(scholarly.discover, grounded_question, 4)
             # Scholarly APIs complement normal web discovery. Prefer authoritative
             # evidence, but preserve independent domains for corroboration.
             known = {r.get("url") for r in results}
@@ -194,18 +201,31 @@ async def run_auto_learn(session_id: str, topic: str):
             verification = "verified" if len(independent_domains) >= 2 and len(trusted) >= 2 else "unverified"
             if "conflict" in synthesis.lower() or "disagree" in synthesis.lower():
                 verification = "conflict"
-                conflict = {"note": "Model flagged disagreement between sources; see answer text."}
                 state["conflicts"] += 1
-            elif verification == "verified":
-                state["verified_items"] += 1
 
+            # Strict learning gate: Brain is a trusted-memory store, not a research
+            # scratchpad. Conflicting or weakly corroborated findings are discarded.
+            if verification != "verified":
+                state["rejected_items"] += 1
+                state["questions_done"] += 1
+                state["progress_pct"] = 20 + int(70 * state["questions_done"] / max(1, state["questions_total"]))
+                continue
+
+            state["verified_items"] += 1
             summary = (synthesis[:200] + "...") if len(synthesis) > 200 else synthesis
             brain.add_knowledge(
                 topic=topic, subtopic=sub, question=question, answer=synthesis,
                 summary=summary, source_ids=[c["id"] for c in collected],
-                verification_status=verification, conflict=conflict,
+                verification_status="verified", conflict=None,
             )
             state["knowledge_items"] += 1
+            verified_context.append(summary)
+            # As verified knowledge accumulates, subsequent research becomes deeper
+            # and explicitly builds on the trusted foundation.
+            if len(verified_context) >= 2:
+                state["learning_stage"] = 2
+            if len(verified_context) >= 6:
+                state["learning_stage"] = 3
             state["questions_done"] += 1
             state["progress_pct"] = 20 + int(70 * state["questions_done"] / max(1, state["questions_total"]))
 
