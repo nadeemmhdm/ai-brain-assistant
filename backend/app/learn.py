@@ -17,7 +17,7 @@ def _new_state(topic: str) -> dict:
         "topic": topic, "status": "running", "current_task": "Planning topic...",
         "progress_pct": 0, "subtopics": [], "questions_total": 0, "questions_done": 0,
         "sources_found": 0, "pages_processed": 0, "knowledge_items": 0,
-        "verified_items": 0, "conflicts": 0, "authoritative_sources": 0, "scholarly_sources": 0, "control": "run",  # run|pause|cancel
+        "verified_items": 0, "conflicts": 0, "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
     }
 
 async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
@@ -111,7 +111,9 @@ async def run_auto_learn(session_id: str, topic: str):
                 collected.append({**page, "id": sid, "title": r.get("title"), "provider": r.get("provider")})
 
             if not collected:
+                state["questions_without_evidence"] += 1
                 state["questions_done"] += 1
+                state["progress_pct"] = 20 + int(70 * state["questions_done"] / max(1, state["questions_total"]))
                 continue
 
             # multi-source synthesis + naive conflict check (section 6)
@@ -135,9 +137,17 @@ async def run_auto_learn(session_id: str, topic: str):
                                              f"Give a concise answer (3-6 sentences), and note any factual conflict between sources."}],
                 reasoning_level="medium",
             )
-            if not synthesis.strip():           # model offline/empty: never store an empty "answer"
-                state["questions_done"] += 1
-                continue
+            if not synthesis.strip():
+                # Research succeeded but the local synthesis model may be offline or may
+                # return an empty completion. Keep useful, provenance-backed evidence
+                # instead of silently producing a false "0 items · completed" session.
+                evidence = next((x["text"].strip() for x in collected if x.get("text", "").strip()), "")
+                if not evidence:
+                    state["questions_without_evidence"] += 1
+                    state["questions_done"] += 1
+                    continue
+                synthesis = evidence[:1200].strip()
+                state["synthesis_fallbacks"] += 1
             conflict = None
             from urllib.parse import urlparse
             independent_domains = {urlparse(x["url"]).netloc.lower().removeprefix("www.") for x in collected}
@@ -161,9 +171,13 @@ async def run_auto_learn(session_id: str, topic: str):
             state["questions_done"] += 1
             state["progress_pct"] = 20 + int(70 * state["questions_done"] / max(1, state["questions_total"]))
 
-        state["status"] = "completed"
-        state["progress_pct"] = 100
-        state["current_task"] = "Done"
+        if state["knowledge_items"] <= 0:
+            state["status"] = "error"
+            state["current_task"] = "No knowledge was saved. Check internet/search access and that the local model or source extraction is working."
+        else:
+            state["status"] = "completed"
+            state["progress_pct"] = 100
+            state["current_task"] = f"Done — saved {state['knowledge_items']} knowledge item(s) to the local Brain."
     except asyncio.CancelledError:
         state["status"] = "cancelled"
     except Exception as e:

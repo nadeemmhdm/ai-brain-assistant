@@ -20,6 +20,7 @@ export function ModelsView() {
   const [trStatus, setTrStatus] = useState<any>(null); const [trCatalog, setTrCatalog] = useState<any[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const poll = useRef<number | null>(null);
+  const modelFile = useRef<HTMLInputElement>(null);
 
   const load = () => { api2.localModels().then(setLocal).catch(() => {}); api2.modelStatus().then(setStatus).catch(() => {}); };
   const loadDownloads = () => api2.downloads().then((d) => { setDownloads(d); if (d.some((x) => x.status === "running")) load(); }).catch(() => {});
@@ -77,6 +78,19 @@ export function ModelsView() {
         </Card>
 
         <Card title="Import a model you already downloaded">
+          <input ref={modelFile} type="file" accept=".gguf" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0]; e.currentTarget.value = ""; if (!file) return;
+            await act("upload", async () => { await api2.uploadModel(file); load(); }, `${file.name} imported`);
+          }} />
+          <div className="flex gap-2 flex-wrap mb-3">
+            <motion.button whileTap={{ scale: 0.96 }} disabled={busy === "upload"} onClick={() => modelFile.current?.click()}
+              className="h-9 px-3 rounded-lg bg-accent text-white text-sm flex items-center gap-2 disabled:opacity-40">
+              {busy === "upload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderInput className="h-4 w-4" />} Select GGUF file
+            </motion.button>
+            <span className="text-[11px] text-muted self-center">Choose the downloaded model directly. No path typing required.</span>
+          </div>
+          <details className="text-xs text-muted">
+            <summary className="cursor-pointer hover:text-ink mb-2">Advanced: import by local path</summary>
           <div className="flex gap-2 flex-wrap">
             <input className={inp + " flex-1 min-w-[220px]"} placeholder={String.raw`C:\Users\you\Downloads\model.gguf`} value={importPath} onChange={(e) => setImportPath(e.target.value)} />
             <select className={inp} value={mode} onChange={(e) => setMode(e.target.value as any)}>
@@ -88,6 +102,7 @@ export function ModelsView() {
               className="h-9 px-3 rounded-lg bg-accent text-white text-sm flex items-center gap-2 disabled:opacity-40"><FolderInput className="h-4 w-4" /> Import</motion.button>
           </div>
           <p className="text-[11px] text-muted mt-2">Only real GGUF files are accepted (the file header is checked). Linked models are never moved or modified.</p>
+          </details>
         </Card>
 
         <Card title="Download from Hugging Face">
@@ -141,7 +156,11 @@ export function ModelsView() {
 
         <Card title="Voice (offline voice chat)">
           <p className="text-xs text-muted mb-3">Download a speech-recognition model and a voice once; after that voice chat and “Hey {"{name}"}” work with no internet. Without them the app uses your browser’s built-in voice.</p>
-          {voice && !voice.stt.library && <p className="text-xs text-amber-500 mb-2">Local voice needs: <code>pip install -r backend/requirements-voice.txt</code> (then restart the backend).</p>}
+          {voice && (!voice.stt.library || !voice.tts.library) && <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 mb-3">
+            <p className="text-xs text-amber-500 mb-2">Offline voice engine is not installed yet.</p>
+            <button onClick={() => act("voicesetup", () => api2.voiceSetup(), "Offline voice installation started")}
+              className="text-xs h-8 px-3 rounded-lg border border-amber-500/40 hover:bg-amber-500/10">Install offline voice engine</button>
+          </div>}
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <Mic className="h-4 w-4 text-muted" /><span className="text-sm">Speech recognition:</span>
             {voice && Object.keys(voice.stt.sizes_mb).filter((s) => s.endsWith(".en") || true).slice(0, 6).map((size: string) => {
@@ -178,8 +197,10 @@ export function ModelsView() {
         <Card title="Translate (offline, powered by Argos Translate)">
           <p className="text-xs text-muted mb-3">
             Used by the <b>Translate</b> skill in the composer — say "to French: hello" and it calls this directly, no guessing from the chat model.
-            {trStatus && !trStatus.available && <> Needs <code>pip install -r backend/requirements-translate.txt</code>, then restart the backend.</>}
+            {trStatus && !trStatus.available && <> Offline translate engine is not installed yet.</>}
           </p>
+          {trStatus && !trStatus.available && <button onClick={() => act("trsetup", () => api2.translateSetup(), "Offline translate installation started")}
+            className="text-xs h-8 px-3 mb-3 rounded-lg border border-amber-500/40 text-amber-500 hover:bg-amber-500/10">Install offline translate engine</button>}
           <div className="flex items-center gap-2 mb-2 text-sm"><Languages className="h-4 w-4 text-muted" />
             <span className="text-muted">Installed pairs:</span>
             <span>{trStatus?.installed?.length ? trStatus.installed.map((p: any) => `${p.from_name}→${p.to_name}`).join(", ") : "none yet"}</span>

@@ -24,7 +24,11 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
       try {
         const s = await api.learnStatus(sessionId);
         misses = 0; setStatus(s);
-        if (["completed", "cancelled", "error"].includes(s.status) && poll.current) clearInterval(poll.current);
+        if (["completed", "cancelled", "error"].includes(s.status) && poll.current) {
+          clearInterval(poll.current);
+          window.dispatchEvent(new CustomEvent("ai-brain:learning-finished", { detail: s }));
+          if (s.status === "completed") toast.success(`Saved ${s.knowledge_items} knowledge item(s) to AI Brain`);
+        }
       } catch {
         if (++misses >= 3 && poll.current) { clearInterval(poll.current); setError("Lost contact with the learning session. Is the backend still running?"); }
       }
@@ -84,6 +88,7 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
               <MiniStat label="Knowledge" value={status?.knowledge_items} />
               <MiniStat label="Verified" value={status?.verified_items} />
               <MiniStat label="Conflicts" value={status?.conflicts} />
+              <MiniStat label="Fallbacks" value={status?.synthesis_fallbacks} />
               <MiniStat label="Status" value={status?.status} />
             </div>
             {status?.status === "running" && (
