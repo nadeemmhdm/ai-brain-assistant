@@ -88,6 +88,12 @@ async def stream_chat(
         "top_k": 40,
         "repeat_penalty": 1.1,
     }
+    # Many reasoning GGUF chat templates (Qwen/R1-style included) expose their
+    # internal reasoning in a separate reasoning_content field instead of
+    # delta.content. Ask llama.cpp to suppress that channel for the main model:
+    # the UI needs the final answer, not a token budget consumed by hidden text.
+    if which == "main" and reasoning_level != "off":
+        payload["reasoning_format"] = "none"
     try:
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream("POST", f"{url}/v1/chat/completions", json=payload) as resp:
@@ -103,9 +109,15 @@ async def stream_chat(
                         break
                     try:
                         obj = json.loads(data)
-                        delta = obj["choices"][0]["delta"].get("content")
+                        choice = obj.get("choices", [{}])[0]
+                        part = choice.get("delta") or {}
+                        delta = part.get("content")
                         if delta:
                             yield delta
+                        # Compatibility: a few llama.cpp/model-template versions put
+                        # final text on choice.message at stream termination.
+                        elif choice.get("finish_reason") and choice.get("message", {}).get("content"):
+                            yield choice["message"]["content"]
                     except Exception:
                         continue
     except httpx.ConnectError:
