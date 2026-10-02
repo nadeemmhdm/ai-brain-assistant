@@ -241,6 +241,16 @@ footer{border-top:1px solid var(--border); padding:44px 0}
 /* docs + error finder */
 .doc-search{width:100%;padding:14px 16px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:14px var(--mono);outline:none}.doc-search:focus{border-color:var(--accent)}
 .error-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}.error-card{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:16px}.error-card code{color:var(--accent2);font:600 13px var(--mono)}.error-card h3{font-size:14px;margin:8px 0 5px}.error-card p{font-size:12px;color:var(--muted);margin:0}.docs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.doc-link{display:block;text-decoration:none;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:18px}.doc-link:hover{border-color:var(--accent)}.doc-link strong{display:block;margin-bottom:6px}.doc-link span{font-size:12px;color:var(--muted)}@media(max-width:760px){.error-grid,.docs-grid{grid-template-columns:1fr}}
+
+/* 2026 landing refresh + robust mobile navigation */
+body{overflow-x:hidden}.hero{padding-top:92px}.hero-grid{gap:72px}.hero .term{transform:rotate(1deg)}
+.hero .term:hover{transform:rotate(0deg) translateY(-3px)}
+header{isolation:isolate}.nav{position:relative}.burger{position:relative;z-index:102;width:44px;height:44px;align-items:center;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.burger span{transform-origin:center}.mobile-panel{display:block;visibility:hidden;inset:69px 0 auto 0;height:calc(100dvh - 69px);padding:18px max(18px,calc((100vw - var(--maxw))/2 + 24px));transform:translateX(100%);opacity:0;pointer-events:none;background:color-mix(in srgb,var(--bg) 97%,transparent);backdrop-filter:blur(18px);transition:transform .28s ease,opacity .22s ease,visibility .28s}
+.mobile-panel.open{visibility:visible;transform:translateX(0);opacity:1;pointer-events:auto}.mobile-panel a{padding:18px 4px;font-size:16px}.mobile-panel .gh-btn{display:flex}
+.feature-card{position:relative;overflow:hidden}.feature-card:before{content:"";position:absolute;left:0;top:0;width:3px;height:0;background:var(--accent);transition:height .25s}.feature-card:hover:before{height:100%}
+@media(max-width:760px){header{backdrop-filter:none;background:var(--bg)}.hero{padding:52px 0 24px}.hero-grid{gap:30px}.hero .term{transform:none}.lede{font-size:16px}.eyebrow-badges{margin-bottom:16px}.mobile-panel{overscroll-behavior:contain}.arch{padding:24px 14px}.arch svg{min-width:600px}.docs-grid,.error-grid{grid-template-columns:1fr}.footer-links{gap:14px}}
+@media(max-width:420px){h1.display{font-size:36px}.term-body{font-size:11.5px;padding:15px;min-height:210px}.badge{font-size:10px}.step{grid-template-columns:1fr}.step-num{margin-bottom:4px}}
 </style>
 </head>
 <body>
@@ -446,13 +456,17 @@ cd ../frontend && npm install</pre><button class="copy-btn" data-target="code-2"
 <script>
 // mobile menu
 const burger = document.getElementById('burger'), panel = document.getElementById('mobile-panel');
-burger.addEventListener('click', () => {
-  const open = burger.classList.toggle('open');
+function setMenu(open) {
+  burger.classList.toggle('open', open);
   panel.classList.toggle('open', open);
-  burger.setAttribute('aria-expanded', open);
+  burger.setAttribute('aria-expanded', String(open));
+  burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   document.body.style.overflow = open ? 'hidden' : '';
-});
-panel.querySelectorAll('a').forEach(a => a.addEventListener('click', () => { burger.classList.remove('open'); panel.classList.remove('open'); document.body.style.overflow = ''; }));
+}
+burger.addEventListener('click', () => setMenu(!panel.classList.contains('open')));
+panel.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setMenu(false)));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+window.addEventListener('resize', () => { if (window.innerWidth > 760) setMenu(false); });
 
 // scroll reveal (single, consistent effect)
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
