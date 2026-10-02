@@ -97,8 +97,10 @@ export function MessageBubble({
           >
             {isStreaming && !message.content ? (
               <ThinkingPanel live={live} name={aiName} />
+            ) : !message.content?.trim() ? (
+              <div className="text-muted text-xs italic py-1">No visible response was received. Regenerate this message to retry.</div>
             ) : (
-              <div className="prose-chat">
+              <div className="prose-chat text-ink">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                   a: ({ href, children }) => (
                     <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 hover:opacity-80 break-all">{children}</a>
