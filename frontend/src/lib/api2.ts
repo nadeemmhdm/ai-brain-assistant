@@ -89,6 +89,12 @@ export const api2 = {
   translateCatalog: () => authFetch(`${BASE}/api/translate/catalog`).then(j<any[]>),
   translateInstall: (from_code: string, to_code: string) => authFetch(`${BASE}/api/translate/install`, json("POST", { from_code, to_code })).then(jAuth),
 
+  // privacy-scoped cloud training teachers
+  cloudTrainingProviders: () => authFetch(`${BASE}/api/training/cloud/providers`).then(j<any>),
+  cloudTrainingConfigure: (body: any) => authFetch(`${BASE}/api/training/cloud/providers`, json("PUT", body)).then(jAuth),
+  cloudTrainingClearKey: (provider: string) => authFetch(`${BASE}/api/training/cloud/providers/${encodeURIComponent(provider)}/key`, { method: "DELETE" }).then(jAuth),
+  cloudTrainingDistill: (dataset_id: string) => authFetch(`${BASE}/api/training/cloud/distill`, json("POST", { dataset_id })).then(jAuth),
+
   // updates
   checkUpdates: (force = false) => authFetch(`${BASE}/api/updates?force=${force}`).then(j<any>),
   installUpdate: () => authFetch(`${BASE}/api/updates/install`, { method: "POST" }).then(jAuth),

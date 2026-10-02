@@ -5,6 +5,7 @@ This folder is the canonical home for project documentation published with the A
 ## Documents
 
 - [Error Codes](ERROR_CODES.md) — stable error identifiers, meanings, recovery hints and API format.
+- [Private Cloud Training](CLOUD_TRAINING.md) — single-provider cloud teacher setup, CLI usage and privacy boundary.
 - [Main README](../README.md) — installation, features, CLI, Trusted Topic Learning and development overview.
 - [Security](../SECURITY.md) — vulnerability reporting and security policy.
 - [Contributing](../CONTRIBUTING.md) — contribution workflow and development guidance.

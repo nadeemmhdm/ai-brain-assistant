@@ -27,9 +27,16 @@ def main():
     sub.add_parser("topics")
     sources=sub.add_parser("sources"); sources.add_argument("--limit", type=int, default=20)
     ctl=sub.add_parser("learn-control"); ctl.add_argument("session_id"); ctl.add_argument("action", choices=["pause","resume","cancel"])
+    sub.add_parser("cloud-training-status")
+    cp=sub.add_parser("cloud-training-config"); cp.add_argument("provider",choices=["openai","ollama_cloud","compatible"]); cp.add_argument("--model",default=""); cp.add_argument("--base-url",default=""); cp.add_argument("--api-key",default=""); cp.add_argument("--activate",action="store_true")
+    cd=sub.add_parser("cloud-training-distill"); cd.add_argument("dataset_id")
     args=p.parse_args()
     try:
         if args.cmd=="status": out=request(args.api,"/api/model/status")
+        elif args.cmd=="cloud-training-status": out=request(args.api,"/api/training/cloud/providers")
+        elif args.cmd=="cloud-training-config":
+            out=request(args.api,"/api/training/cloud/providers","PUT",{"provider":args.provider,"active":args.activate,"model":args.model,"base_url":args.base_url,"api_key":args.api_key or None})
+        elif args.cmd=="cloud-training-distill": out=request(args.api,"/api/training/cloud/distill","POST",{"dataset_id":args.dataset_id})
         elif args.cmd=="topics": out=request(args.api,"/api/brain/topics")
         elif args.cmd=="sources": out=request(args.api,f"/api/brain/sources?limit={args.limit}")
         elif args.cmd=="brain-search":
