@@ -1,4 +1,8 @@
 import asyncio
+import os
+import subprocess
+import sys
+import threading
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -6,10 +10,32 @@ from .. import voice
 from .settings_router import get_value
 
 router = APIRouter(prefix="/api/voice", tags=["voice"])
+_SETUP = {"status": "idle", "error": None}
 
 @router.get("/status")
 def status():
     return voice.status()
+
+@router.get("/setup/status")
+def setup_status():
+    return _SETUP
+
+@router.post("/setup")
+def setup_local_voice():
+    if _SETUP["status"] == "running":
+        return _SETUP
+    req = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "requirements-voice.txt"))
+    _SETUP.update(status="running", error=None)
+    def work():
+        try:
+            p = subprocess.run([sys.executable, "-m", "pip", "install", "-r", req], capture_output=True, text=True, timeout=1800)
+            if p.returncode:
+                raise RuntimeError((p.stderr or p.stdout)[-1200:])
+            _SETUP.update(status="completed", error=None)
+        except Exception as e:
+            _SETUP.update(status="failed", error=str(e)[:1200])
+    threading.Thread(target=work, daemon=True).start()
+    return _SETUP
 
 @router.get("/catalog")
 async def catalog():
