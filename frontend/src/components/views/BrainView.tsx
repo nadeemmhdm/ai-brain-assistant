@@ -20,7 +20,15 @@ export function BrainView({ onOpenAutoLearn }: { onOpenAutoLearn: () => void }) 
     api.brainTopics().then(setTopics).catch(() => {});
     api.brainSessions().then(setSessions).catch(() => {});
   };
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+    const refresh = () => {
+      load();
+      api.brainKnowledge(query, topic || undefined).then(setItems).catch(() => {});
+    };
+    window.addEventListener("ai-brain:learning-finished", refresh);
+    return () => window.removeEventListener("ai-brain:learning-finished", refresh);
+  }, []);
   useEffect(() => {
     const t = setTimeout(() => api.brainKnowledge(query, topic || undefined).then(setItems).catch(() => {}), 200);
     return () => clearTimeout(t);
