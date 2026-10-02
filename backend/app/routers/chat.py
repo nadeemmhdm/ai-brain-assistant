@@ -515,30 +515,17 @@ async def chat(body: ChatRequest):
                 answer, thinking = thinking, ""   # last resort: still show something rather than nothing
         answer = answer.strip()
         if not answer:
-            # Never persist/send an invisible assistant message. Some local model
-            # templates can finish without a content delta even though generation ran.
-            # Retry the selected model with reasoning disabled at protocol level.
-            # If the main model still emits no visible content, transparently use the
-            # working agent/fast model for this one reply instead of showing an error.
-            fallback = await llm_client.complete(
-                model,
-                [{"role": "system", "content": "Reply directly to the user. Output final visible answer text only."},
-                 {"role": "user", "content": user_text}],
-                "off",
-            )
-            fallback_model = model
-            if not fallback.strip() and model == "main" and (await llm_client.check_model_status("agent"))["online"]:
-                fallback_model = "agent"
-                fallback = await llm_client.complete(
-                    "agent",
-                    [{"role": "system", "content": "Reply directly and concisely. Output final answer text only; do not emit thinking tags."},
-                     {"role": "user", "content": user_text}],
-                    "off",
-                )
-                if fallback.strip():
-                    yield _sse("status", {"stage": "notice", "detail": "Main model returned no visible content; Fast model completed this reply."})
-            answer = fallback.strip() or "The selected local model returned no text. Reload the Main model and try again."
-            yield _sse("delta", {"text": answer})
+            # Keep the selected model. Never silently replace Main with Fast.
+            # Some GGUF/chat templates finish a reasoning run with no visible content,
+            # so retry the same model with a strict direct-answer prompt and small budget.
+            yield _sse("status", {"stage": "writing", "detail": "Retrying a visible answer…"})
+            recovery_context = context_text if grounded else (summary or "")
+            answer = await llm_client.recover_visible_answer(model, user_text, context=recovery_context)
+            if answer:
+                yield _sse("delta", {"text": answer})
+            else:
+                yield _sse("error", {"message": "The selected Main model returned no visible text twice. Reload it in Models & Voice and retry."})
+                return
 
         # drop citation numbers that don't exist
         valid = {s["index"] for s in sources if s.get("index")}
