@@ -15,7 +15,7 @@ export function TrainingView() {
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
   const [onlyVerified, setOnlyVerified] = useState(true);
-  const [form, setForm] = useState({ dataset_id: "", base_model_path: "", output_dir: "", epochs: 3, learning_rate: 0.0002, lora_r: 8 });
+  const [form, setForm] = useState({ dataset_id: "", base_model_path: "", output_dir: "", epochs: 3, learning_rate: 0.0002, lora_r: 8, training_mode: "local" });
   const poll = useRef<number | null>(null);
   const [cloud, setCloud] = useState<any>({ active_provider: null, providers: [] });
   const [cloudForm, setCloudForm] = useState({ provider: "openai", model: "", base_url: "", api_key: "", active: true });
@@ -55,8 +55,10 @@ export function TrainingView() {
 
   const start = async () => {
     try {
-      await api.startTraining(form);
-      toast.info("Training job started");
+      if (form.training_mode === "cloud_assisted") toast.info("Cloud teacher is refining a protected copy of the approved dataset…");
+      const r = await api.startTraining(form);
+      toast.info(r.training_mode === "cloud_assisted" ? `Cloud-refined dataset ready · local LoRA training started` : "Local training job started");
+      if (r.cloud_refinement) { await loadDatasets(); setForm((x) => ({ ...x, dataset_id: r.dataset_id })); }
       loadJobs();
     } catch (e: any) { toast.error(e.message); }
   };
@@ -132,7 +134,7 @@ export function TrainingView() {
           </div>
         </Card>
 
-        <Card title="3 · Private cloud teacher (optional)">
+        <Card title="3 · Configure cloud teacher (optional)">
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted mb-3">
             Cloud mode sends only approved examples from the dataset you explicitly select. Chat history, Memory, the full Brain database and local files are never attached. API keys are encrypted locally and are never shown again.
           </div>
@@ -154,7 +156,22 @@ export function TrainingView() {
           </div>
         </Card>
 
-        <Card title="4 · Start local LoRA training (explicit, optional)">
+        <Card title="4 · Choose training method & start">
+          <div className="grid sm:grid-cols-2 gap-2 mb-3">
+            <button onClick={() => setForm({ ...form, training_mode: "local" })}
+              className={`text-left rounded-xl border p-3 transition-colors ${form.training_mode === "local" ? "border-accent bg-accent/10" : "border-border"}`}>
+              <div className="text-sm font-medium">Local only</div>
+              <div className="text-[11px] text-muted mt-1">Train directly from the approved local dataset. No cloud API calls.</div>
+            </button>
+            <button onClick={() => setForm({ ...form, training_mode: "cloud_assisted" })} disabled={!cloud.active_provider}
+              className={`text-left rounded-xl border p-3 transition-colors disabled:opacity-40 ${form.training_mode === "cloud_assisted" ? "border-accent bg-accent/10" : "border-border"}`}>
+              <div className="text-sm font-medium">Cloud-assisted + local LoRA</div>
+              <div className="text-[11px] text-muted mt-1">Teacher: {cloud.active_provider || "configure a provider first"}. Refines a copy, then automatically starts local training.</div>
+            </button>
+          </div>
+          {form.training_mode === "cloud_assisted" && <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-muted">
+            Only approved examples in the selected dataset are sent to <b>{cloud.active_provider}</b>. Your original reviewed dataset is preserved. A derived “cloud refined” dataset is stored locally and that copy is used for LoRA training.
+          </div>}
           <div className="grid sm:grid-cols-2 gap-2">
             <select className={inputCls} value={form.dataset_id} onChange={(e) => setForm({ ...form, dataset_id: e.target.value })}>
               <option value="">Select dataset…</option>
@@ -169,7 +186,7 @@ export function TrainingView() {
             </div>
           </div>
           <Btn onClick={start} disabled={!form.dataset_id || !form.base_model_path || !form.output_dir} className="mt-3">
-            <Play className="h-4 w-4" /> Start training
+            <Play className="h-4 w-4" /> {form.training_mode === "cloud_assisted" ? "Refine with API & start local training" : "Start local training"}
           </Btn>
         </Card>
 
