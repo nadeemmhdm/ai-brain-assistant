@@ -17,7 +17,7 @@ def _new_state(topic: str) -> dict:
         "topic": topic, "status": "running", "current_task": "Planning topic...",
         "progress_pct": 0, "subtopics": [], "questions_total": 0, "questions_done": 0,
         "sources_found": 0, "pages_processed": 0, "knowledge_items": 0,
-        "verified_items": 0, "conflicts": 0, "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
+        "verified_items": 0, "conflicts": 0, "entity_type": None, "research_scope": [], "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
     }
 
 async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
@@ -35,6 +35,39 @@ async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
         pass
     return fallback
 
+
+async def _plan_topic(topic: str) -> dict:
+    """Classify the subject first, then build a breadth-first research syllabus."""
+    raw = await llm_client.complete(
+        "agent",
+        [{"role":"system","content":(
+            "You plan factual research. Return ONLY JSON with keys entity_type and research_areas. "
+            "entity_type is a short noun such as ai_model, company, person, technology, event, place, concept, product, or topic. "
+            "research_areas must contain 6-10 short areas appropriate to that entity. Preserve exact names. "
+            "For an AI model/product include identity, developer/organization, origin/history, model/version family, "
+            "capabilities, technical/training information that is publicly documented, access/products, limitations/safety, and current status. "
+            "For a company include founders/leadership only when relevant and verifiable. Do not invent missing facts."
+        )},{"role":"user","content":topic}],
+        reasoning_level="low",
+    )
+    try:
+        obj=json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+        areas=[str(x).strip() for x in obj.get("research_areas",[]) if str(x).strip()]
+        if areas:
+            return {"entity_type":str(obj.get("entity_type") or "topic")[:40], "research_areas":areas[:10]}
+    except Exception:
+        pass
+    return {"entity_type":"topic","research_areas":[
+        "identity and definition","origin and history","creator or organization","key capabilities",
+        "how it works","important versions or milestones","access and use","limitations and current status"
+    ]}
+
+def _question_fallback(topic: str, area: str) -> list[str]:
+    return [
+        f"What are the verified facts about {area} of {topic}?",
+        f"What primary or authoritative sources document {area} of {topic}?",
+    ]
+
 async def run_auto_learn(session_id: str, topic: str):
     state = SESSIONS[session_id]
     sid_db = db.new_id()
@@ -45,12 +78,12 @@ async def run_auto_learn(session_id: str, topic: str):
         )
 
     try:
-        # 1. subtopics
-        state["current_task"] = "Generating subtopics..."
-        subtopics = await _agent_json_list(
-            f"List 6-10 key subtopics someone should learn to understand '{topic}'.",
-            fallback=[topic],
-        )
+        # 1. Understand the entity/topic before asking research questions.
+        state["current_task"] = "Understanding topic and building research map..."
+        plan = await _plan_topic(topic)
+        state["entity_type"] = plan["entity_type"]
+        subtopics = plan["research_areas"]
+        state["research_scope"] = subtopics
         state["subtopics"] = subtopics
         state["progress_pct"] = 10
 
@@ -61,8 +94,9 @@ async def run_auto_learn(session_id: str, topic: str):
             while state["control"] == "pause":
                 await asyncio.sleep(0.5)
             qs = await _agent_json_list(
-                f"List 3-5 specific research questions about '{sub}' (in the context of {topic}).",
-                fallback=[f"What is {sub}?"],
+                f"Create 2-4 factual questions needed to learn the research area '{sub}' about '{topic}'. "
+                "Questions must preserve the exact subject name, avoid speculation, and cover concrete facts that can be verified from sources.",
+                fallback=_question_fallback(topic, sub),
             )
             all_questions.extend([(sub, q) for q in qs])
         state["questions_total"] = len(all_questions)
