@@ -156,7 +156,11 @@ export function ModelsView() {
 
         <Card title="Voice (offline voice chat)">
           <p className="text-xs text-muted mb-3">Download a speech-recognition model and a voice once; after that voice chat and “Hey {"{name}"}” work with no internet. Without them the app uses your browser’s built-in voice.</p>
-          {voice && !voice.stt.library && <p className="text-xs text-amber-500 mb-2">Local voice needs: <code>pip install -r backend/requirements-voice.txt</code> (then restart the backend).</p>}
+          {voice && (!voice.stt.library || !voice.tts.library) && <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 mb-3">
+            <p className="text-xs text-amber-500 mb-2">Offline voice engine is not installed yet.</p>
+            <button onClick={() => act("voicesetup", () => api2.voiceSetup(), "Offline voice installation started")}
+              className="text-xs h-8 px-3 rounded-lg border border-amber-500/40 hover:bg-amber-500/10">Install offline voice engine</button>
+          </div>}
           <div className="flex items-center gap-2 flex-wrap mb-3">
             <Mic className="h-4 w-4 text-muted" /><span className="text-sm">Speech recognition:</span>
             {voice && Object.keys(voice.stt.sizes_mb).filter((s) => s.endsWith(".en") || true).slice(0, 6).map((size: string) => {
@@ -193,8 +197,10 @@ export function ModelsView() {
         <Card title="Translate (offline, powered by Argos Translate)">
           <p className="text-xs text-muted mb-3">
             Used by the <b>Translate</b> skill in the composer — say "to French: hello" and it calls this directly, no guessing from the chat model.
-            {trStatus && !trStatus.available && <> Needs <code>pip install -r backend/requirements-translate.txt</code>, then restart the backend.</>}
+            {trStatus && !trStatus.available && <> Offline translate engine is not installed yet.</>}
           </p>
+          {trStatus && !trStatus.available && <button onClick={() => act("trsetup", () => api2.translateSetup(), "Offline translate installation started")}
+            className="text-xs h-8 px-3 mb-3 rounded-lg border border-amber-500/40 text-amber-500 hover:bg-amber-500/10">Install offline translate engine</button>}
           <div className="flex items-center gap-2 mb-2 text-sm"><Languages className="h-4 w-4 text-muted" />
             <span className="text-muted">Installed pairs:</span>
             <span>{trStatus?.installed?.length ? trStatus.installed.map((p: any) => `${p.from_name}→${p.to_name}`).join(", ") : "none yet"}</span>
