@@ -459,7 +459,7 @@ async def chat(body: ChatRequest):
                        "disagree, explicitly describe the disagreement. If the evidence does not directly support an answer, say that the search "
                        "did not establish the answer instead of guessing. Never treat a search snippet as proof when a full source contradicts it. "
                        "Never invent citations.\n\n" + "\n\n".join(blocks))
-        system = llm_client.build_system_prompt(system, level)
+        system = llm_client.build_system_prompt(system, level, model)
 
         cfg = settings.reasoning_levels[level]
         max_tokens = min(cfg["max_tokens"], 500) if body.voice else None
@@ -469,17 +469,18 @@ async def chat(body: ChatRequest):
             system += f"\n\nSummary of the earlier part of this conversation: {summary}"
         messages = [{"role": "system", "content": system}] + history
 
-        yield _sse("status", {"stage": "thinking" if cfg["think"] else "writing", "detail": "Thinking…" if cfg["think"] else "Writing…"})
+        uses_tagged_thinking = bool(cfg["think"] and model == "agent")
+        yield _sse("status", {"stage": "thinking" if uses_tagged_thinking else "writing", "detail": "Thinking…" if uses_tagged_thinking else "Writing…"})
 
         # ---- generate (thinking streamed separately from the answer) ----
-        splitter = llm_client.ThinkSplitter()
+        splitter = llm_client.ThinkSplitter() if uses_tagged_thinking else None
         thinking, answer = "", ""
         started_answer = False
         async for delta in llm_client.stream_chat(model, messages, level, temperature=0.2 if grounded else 0.45, max_tokens=max_tokens):
             if delta.startswith("__ERROR__:"):
                 yield _sse("error", {"message": delta[len("__ERROR__:"):]})
                 return
-            for kind, text in splitter.feed(delta):
+            for kind, text in (splitter.feed(delta) if splitter else [("answer", delta)]):
                 if kind == "thinking":
                     thinking += text
                     yield _sse("thinking_delta", {"text": text})
@@ -489,12 +490,13 @@ async def chat(body: ChatRequest):
                         yield _sse("status", {"stage": "writing", "detail": "Writing…"})
                     answer += text
                     yield _sse("delta", {"text": text})
-        for kind, text in splitter.flush():
-            if kind == "thinking":
-                thinking += text
-            else:
-                answer += text
-                yield _sse("delta", {"text": text})
+        if splitter:
+            for kind, text in splitter.flush():
+                if kind == "thinking":
+                    thinking += text
+                else:
+                    answer += text
+                    yield _sse("delta", {"text": text})
         if not answer.strip() and thinking.strip():
             # The model never closed its <thinking> block -- rather than dumping raw internal
             # monologue as if it were the reply, ask it once more, quickly, for an actual answer.
@@ -521,7 +523,7 @@ async def chat(body: ChatRequest):
                  {"role": "user", "content": user_text}],
                 "off",
             )
-            answer = fallback.strip() or "I couldn't produce a visible reply. Please try again, or switch the reasoning level to Off and retry."
+            answer = fallback.strip() or "I couldn't produce a visible reply from the selected model. Please retry or reload the Main model."
             yield _sse("delta", {"text": answer})
 
         # drop citation numbers that don't exist
