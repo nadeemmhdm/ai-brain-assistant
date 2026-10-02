@@ -56,7 +56,7 @@ def import_model(path: str, mode: str = "link") -> dict:
         shutil.copy2(path, dest)
         return {"filename": name, "mode": "copy"}
     d = _imports(); d[name] = path; _save_imports(d)
-    return {"filename": name, "mode": "link", "path": path}
+    return {"filename": name, "mode": "link"}
 
 def remove_import(filename: str):
     d = _imports(); d.pop(filename, None); _save_imports(d)
@@ -70,7 +70,7 @@ def list_local() -> list[dict]:
                 out.append({"filename": name, "size_mb": round(os.path.getsize(p) / 1e6, 1), "imported": False}); seen.add(name)
     for name, p in _imports().items():
         if name not in seen and os.path.isfile(p):
-            out.append({"filename": name, "size_mb": round(os.path.getsize(p) / 1e6, 1), "imported": True, "path": p})
+            out.append({"filename": name, "size_mb": round(os.path.getsize(p) / 1e6, 1), "imported": True})
     return out
 
 def running() -> dict:
