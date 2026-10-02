@@ -44,6 +44,8 @@ export const api2 = {
 
   // voice
   voiceStatus: () => authFetch(`${BASE}/api/voice/status`).then(j<any>),
+  voiceSetup: () => authFetch(`${BASE}/api/voice/setup`, { method: "POST" }).then(jAuth),
+  voiceSetupStatus: () => authFetch(`${BASE}/api/voice/setup/status`).then(j<any>),
   voiceCatalog: () => authFetch(`${BASE}/api/voice/catalog`).then(j<any[]>),
   installStt: (size: string) => authFetch(`${BASE}/api/voice/stt/install`, json("POST", { size })).then(jAuth),
   installVoice: (voice_id: string) => authFetch(`${BASE}/api/voice/tts/install`, json("POST", { voice_id })).then(jAuth),
@@ -90,6 +92,8 @@ export const api2 = {
 
   // translate
   translateStatus: () => authFetch(`${BASE}/api/translate/status`).then(j<any>),
+  translateSetup: () => authFetch(`${BASE}/api/translate/setup`, { method: "POST" }).then(jAuth),
+  translateSetupStatus: () => authFetch(`${BASE}/api/translate/setup/status`).then(j<any>),
   translateCatalog: () => authFetch(`${BASE}/api/translate/catalog`).then(j<any[]>),
   translateInstall: (from_code: string, to_code: string) => authFetch(`${BASE}/api/translate/install`, json("POST", { from_code, to_code })).then(jAuth),
 
