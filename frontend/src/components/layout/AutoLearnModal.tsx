@@ -64,7 +64,7 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
             <input
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Cybersecurity"
+              placeholder="e.g. Grok AI — what is Grok AI?"
               className="w-full rounded-md bg-surface-2 border border-border px-3 py-2 text-sm mb-3 focus:outline-none focus:border-accent"
             />
             <Button onClick={start} disabled={!topic.trim() || starting} className="w-full">
