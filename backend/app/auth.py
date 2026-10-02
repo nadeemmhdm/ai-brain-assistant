@@ -19,7 +19,7 @@ import time
 from fastapi import Header, HTTPException
 from . import db
 
-SESSION_TTL_SECONDS = 60 * 60 * 12  # 12 hours
+SESSION_TTL_SECONDS = 60 * 60 * 4  # 4 hours; local app-lock sessions are intentionally short-lived
 _SESSIONS: dict[str, float] = {}  # token -> expires_at
 
 def _hash_password(password: str, salt: bytes | None = None) -> str:
