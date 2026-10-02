@@ -73,12 +73,34 @@ def _lexical(question: str, passage: str) -> float:
     q = set(brain._tokens(question))
     return len(q & set(brain._tokens(passage))) / len(q) if q else 0.0
 
-def confidence(scored: list[float], tiers: list[str], domains: int) -> dict:
-    """A simple, explainable label -- not a probability."""
-    best = max(scored) if scored else 0
-    pts = (2 if best >= 0.55 else 1 if best >= 0.35 else 0) + (2 if domains >= 3 else 1 if domains == 2 else 0) + (1 if "A" in tiers or "B" in tiers else 0)
-    label = "high" if pts >= 4 else "medium" if pts >= 2 else "low"
-    return {"label": label, "sources": len(tiers), "domains": domains, "best_tier": min(tiers) if tiers else None}
+def confidence(scored: list[float], tiers: list[str], domains: int, snippet_sources: int = 0) -> dict:
+    """Conservative evidence-quality percentage, NOT a probability that the answer is true.
+
+    The old high/medium/low score could report "high" from relevance + domain count
+    even when the generated answer was wrong. This score is deliberately capped
+    unless evidence is independent and trustworthy.
+    """
+    if not scored or not tiers:
+        return {"percent": 0, "sources": len(tiers), "domains": domains, "best_tier": None, "basis": "no usable evidence"}
+    # Retrieval relevance is useful but never sufficient for confidence.
+    rel = max(0.0, min(1.0, max(scored)))
+    avg_rel = max(0.0, min(1.0, sum(max(0.0, min(1.0, s)) for s in scored[:5]) / min(5, len(scored))))
+    tier_value = {"A": 1.0, "B": 0.78, "C": 0.48, "D": 0.20}
+    trust = sum(tier_value.get(t, 0.35) for t in tiers) / len(tiers)
+    independence = min(1.0, domains / 3.0)
+    score = 100.0 * (0.30 * rel + 0.20 * avg_rel + 0.30 * trust + 0.20 * independence)
+    # One-domain evidence cannot justify strong confidence; snippets are weaker
+    # than successfully extracted source pages.
+    if domains <= 1:
+        score = min(score, 55)
+    elif domains == 2:
+        score = min(score, 74)
+    if not any(t in ("A", "B") for t in tiers):
+        score = min(score, 59)
+    if snippet_sources:
+        score -= min(20, snippet_sources * 5)
+    return {"percent": max(0, min(95, round(score))), "sources": len(tiers), "domains": domains,
+            "best_tier": min(tiers) if tiers else None, "basis": "retrieval relevance, source quality and independent domains"}
 
 def _chunks(text: str, size: int = 700) -> list[str]:
     paras = [p.strip() for p in re.split(r"\n{1,}", text) if len(p.strip()) > 60]
@@ -126,7 +148,9 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         return {
             "blocks": [f"[Saved research — {hit['verification_status']}]\nQ: {hit['question']}\nA: {hit['answer']}"],
             "sources": srcs, "from_memory": True, "save": None,
-            "confidence": {"label": "medium" if hit["verification_status"] == "verified" else "low", "sources": len(srcs), "domains": len(srcs), "best_tier": None, "from_memory": True},
+            "confidence": {"percent": 65 if hit["verification_status"] == "verified" else 35, "sources": len(srcs),
+                           "domains": len({urlparse(s["url"]).netloc for s in srcs if s.get("url")}), "best_tier": None,
+                           "from_memory": True, "basis": "saved research; reduced because it was not freshly checked"},
             "context_text": hit["answer"],
         }
 
@@ -167,7 +191,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         elif r.get("snippet"):
             # page blocked/unreadable: fall back to the search snippet, clearly short
             pages.append({"url": r["url"], "title": r.get("title") or r["url"], "text": r["snippet"],
-                          "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "", "fetched_at": time.time()})
+                          "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "", "fetched_at": time.time(), "snippet_only": True})
 
     await emit("ranking", "Picking the most relevant passages…")
     qvec = brain.embed(question)
@@ -209,6 +233,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     return {
         "blocks": blocks, "sources": sources, "from_memory": False,
         "save": {"source_ids": [s["id"] for s in sources], "domains": len(domains)},
-        "confidence": confidence(chosen_scores, [s["trust_tier"] for s in sources], len(domains)),
+        "confidence": confidence(chosen_scores, [s["trust_tier"] for s in sources], len(domains),
+                                 sum(1 for pi in order if pages[pi].get("snippet_only"))),
         "context_text": "\n".join(blocks),
     }

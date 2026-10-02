@@ -453,11 +453,12 @@ async def chat(body: ChatRequest):
         if understood_query != understanding.normalize(user_text):
             system += f"\nRetrieval interpretation (helper only; the original user message remains authoritative): {understood_query}"
         if grounded:
-            system += ("\n\nNumbered context from research follows. If it actually answers the question, use it and cite the numbers "
-                       "like [1] right after the claims they support. If it is irrelevant or unhelpful (for example the question is basic "
-                       "knowledge, math, or something the context doesn't cover), ignore the context completely and just answer normally -- "
-                       "never say the context is missing information for a question it was never meant to answer, and never invent citations.\n\n"
-                       + "\n\n".join(blocks))
+            system += ("\n\nNumbered web evidence follows. SEARCH MODE ACCURACY RULES: For factual claims that depend on current/web "
+                       "information, answer ONLY from evidence below. Do not fill missing facts from model memory. Cite [n] immediately after "
+                       "each supported factual claim. Prefer agreement across independent sources and prefer primary/official evidence. If sources "
+                       "disagree, explicitly describe the disagreement. If the evidence does not directly support an answer, say that the search "
+                       "did not establish the answer instead of guessing. Never treat a search snippet as proof when a full source contradicts it. "
+                       "Never invent citations.\n\n" + "\n\n".join(blocks))
         system = llm_client.build_system_prompt(system, level)
 
         cfg = settings.reasoning_levels[level]
@@ -534,7 +535,8 @@ async def chat(body: ChatRequest):
             if bad:
                 answer += f"\n\n> ⚠️ I couldn't find {', '.join(bad)} in the sources, so please double-check that."
                 if conf:
-                    conf = {**conf, "label": "low" if conf["label"] != "low" else "low", "flagged": bad}
+                    conf = {**conf, "percent": min(int(conf.get("percent", 0)), 25), "flagged": bad,
+                            "basis": "unsupported numeric claims detected; confidence capped"}
 
         aid = db.new_id()
         with db.get_conn() as conn:
