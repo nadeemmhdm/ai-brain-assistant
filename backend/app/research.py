@@ -16,7 +16,7 @@ import asyncio
 import re
 import time
 from urllib.parse import urlparse
-from . import db, brain, search, llm_client
+from . import db, brain, search, llm_client, trusted_search
 from .search import SearchError
 
 FRESHNESS_WORDS = re.compile(r"\b(today|tonight|latest|current(ly)?|now|news|price|score|weather|this (week|month|year)|20\d\d)\b", re.I)
@@ -164,7 +164,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     results, seen, search_errors = [], set(), []
     for q in queries:
         try:
-            for r in await asyncio.to_thread(search.search, q, "duckduckgo", cfg["pages"] * 2):
+            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2):
                 url = r.get("url")
                 if url and url not in seen:
                     seen.add(url); results.append(r)
