@@ -542,7 +542,16 @@ async def chat(body: ChatRequest):
             system += ("\n\nCONVERSATION CONTINUITY RULE: Treat recent user and assistant messages as one continuous dialogue. "
                        "Resolve this/that/it/they and short follow-ups against immediately preceding turns. Do not treat a follow-up "
                        "as an unrelated new question.")
-        system += "\n\nRESPONSE RELEVANCE RULE: Answer only what the user asked. Do not add unrelated biography, model history, creator details, age, birthday, links, capabilities, or self-description unless specifically requested. Keep simple questions simple. Main and Fast should both behave as capable conversational assistants; model choice changes the engine, not the relevance standard. If the user directly addresses you by your configured assistant name, you may naturally acknowledge or use your name when it fits; do not repeat your name in every response.\n\nAccuracy rules:" First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request was addressed and that you did not invent specifics. "
+        system += ("\n\nRESPONSE RELEVANCE RULE: Answer only what the user asked. Do not add unrelated biography, "
+                   "model history, creator details, age, birthday, links, capabilities, or self-description unless specifically requested. "
+                   "Keep simple questions simple. Main and Fast should both behave as capable conversational assistants; model choice changes "
+                   "the engine, not the relevance standard. If the user directly addresses you by your configured assistant name, you may "
+                   "naturally acknowledge or use your name when it fits; do not repeat your name in every response. "
+                   "\n\nAccuracy rules: First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. "
+                   "Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence "
+                   "conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, "
+                   "ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request "
+                   "was addressed and that you did not invent specifics.")
         if understood_query != understanding.normalize(user_text):
             system += f"\nRetrieval interpretation (helper only; the original user message remains authoritative): {understood_query}"
         if grounded:
