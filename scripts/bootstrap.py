@@ -137,6 +137,12 @@ def check_and_install_app_update():
     fetched = run([git, "fetch", "--tags", "--force", "origin"], timeout=120)
     if fetched.returncode:
         print("[update] git fetch failed; continuing with installed version.")
+        if stash_created:
+            restored = run([git, "stash", "pop"], timeout=120)
+            if restored.returncode:
+                print("[update] Your local-change backup remains in git stash; it was not deleted.")
+            else:
+                print("[update] Local changes restored.")
         return False
     merged = run([git, "merge", "--ff-only", latest_tag], timeout=120)
     if merged.returncode:
