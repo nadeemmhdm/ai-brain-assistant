@@ -114,7 +114,7 @@ export function MessageBubble({
         {!isUser && message.confidence && (
           <span title={`${message.confidence.sources} source(s) from ${message.confidence.domains} site(s). ${message.confidence.basis || "Evidence-based estimate; not a guarantee of correctness."}`}
             className="mt-1.5 mr-2 inline-flex items-center gap-1 text-[11px] rounded-full px-2 py-0.5 border border-border text-muted">
-            <ShieldCheck className="h-3 w-3" /> {Math.max(0, Math.min(100, message.confidence.percent ?? 0))}% confidence
+            <ShieldCheck className="h-3 w-3" /> {Math.max(0, Math.min(100, message.confidence.percent ?? 0))}% · {confidenceGrade(message.confidence.percent ?? 0)}
           </span>
         )}
         {!isUser && message.action && onDecideAction && (
@@ -179,3 +179,4 @@ function IconBtn({ children, onClick, title }: { children: React.ReactNode; onCl
     </motion.button>
   );
 }
+\nfunction confidenceGrade(p:number){return p>=85?"A":p>=70?"B":p>=50?"C":"D"}\n
