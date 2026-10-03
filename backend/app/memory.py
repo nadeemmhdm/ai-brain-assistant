@@ -42,7 +42,7 @@ def delete(mid: str):
 
 def relevant(query: str, limit: int = 5) -> list[str]:
     with db.get_conn() as conn:
-        rows = conn.execute("SELECT id, content, embedding FROM memories").fetchall()
+        rows = conn.execute("SELECT id, content, embedding FROM memories WHERE content NOT LIKE 'user_profile:%'").fetchall()
     if not rows:
         return []
     if len(rows) <= limit:
