@@ -75,59 +75,66 @@ async def stream_chat(
     temperature: Optional[float] = None,
     max_tokens: Optional[int] = None,
 ) -> AsyncGenerator[str, None]:
-    """Yields raw text deltas from the local model server (SSE passthrough)."""
+    """Yield visible text from llama.cpp, retrying optional reasoning flags for compatibility."""
     cfg = settings.reasoning_levels.get(reasoning_level, settings.reasoning_levels[settings.default_reasoning_level])
     url = _model_url(which)
-    payload = {
-        "model": _model_name(which),
-        "messages": messages,
+    base_payload = {
+        "model": _model_name(which), "messages": messages,
         "temperature": cfg["temperature"] if temperature is None else min(temperature, cfg["temperature"]),
-        "max_tokens": max_tokens or cfg["max_tokens"],
-        "stream": True,
-        "cache_prompt": True,   # llama.cpp reuses the shared prompt prefix -> much faster follow-ups
-        "top_k": 40,
-        "repeat_penalty": 1.1,
+        "max_tokens": max_tokens or cfg["max_tokens"], "stream": True,
+        "cache_prompt": True, "top_k": 40, "repeat_penalty": 1.1,
     }
-    # Many reasoning GGUF chat templates (Qwen/R1-style included) expose their
-    # internal reasoning in a separate reasoning_content field instead of
-    # delta.content. Ask llama.cpp to suppress that channel for the main model:
-    # the UI needs the final answer, not a token budget consumed by hidden text.
+    attempts = [dict(base_payload)]
     if which == "main" and reasoning_level != "off":
-        payload["reasoning_format"] = "none"
+        # Newer llama.cpp understands this; older builds may reject it with HTTP 400.
+        attempts[0]["reasoning_format"] = "none"
+        attempts.append(dict(base_payload))
+
     try:
         async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("POST", f"{url}/v1/chat/completions", json=payload) as resp:
-                if resp.status_code != 200:
-                    body = await resp.aread()
-                    yield f"__ERROR__:Model server ({which}) returned {resp.status_code}: {body.decode(errors='ignore')[:300]}"
+            last_error = ""
+            for attempt_no, payload in enumerate(attempts):
+                emitted = False
+                reasoning_fallback: list[str] = []
+                async with client.stream("POST", f"{url}/v1/chat/completions", json=payload) as resp:
+                    if resp.status_code != 200:
+                        body = (await resp.aread()).decode(errors="ignore")[:500]
+                        last_error = f"Model server ({which}) returned {resp.status_code}: {body}"
+                        # Compatibility retry: same selected model, just without optional flag.
+                        if attempt_no + 1 < len(attempts) and resp.status_code in (400, 404, 422):
+                            continue
+                        yield f"__ERROR__:{last_error}"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[len("data:"):].strip()
+                        if data == "[DONE]": break
+                        try:
+                            obj = json.loads(data); choice = obj.get("choices", [{}])[0]
+                            part = choice.get("delta") or {}
+                            visible = part.get("content")
+                            if visible:
+                                emitted = True; yield visible
+                            else:
+                                rc = part.get("reasoning_content") or part.get("reasoning")
+                                if rc: reasoning_fallback.append(str(rc))
+                                final = (choice.get("message") or {}).get("content")
+                                if choice.get("finish_reason") and final:
+                                    emitted = True; yield final
+                        except (ValueError, TypeError, KeyError):
+                            continue
+                if emitted:
                     return
-                async for line in resp.aiter_lines():
-                    if not line or not line.startswith("data:"):
-                        continue
-                    data = line[len("data:"):].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        obj = json.loads(data)
-                        choice = obj.get("choices", [{}])[0]
-                        part = choice.get("delta") or {}
-                        delta = part.get("content")
-                        if delta:
-                            yield delta
-                        # Compatibility: a few llama.cpp/model-template versions put
-                        # final text on choice.message at stream termination.
-                        elif choice.get("finish_reason") and choice.get("message", {}).get("content"):
-                            yield choice["message"]["content"]
-                    except Exception:
-                        continue
+                # Some reasoning templates emit only a reasoning channel. Do not expose
+                # scratchpad; retry the same model once in direct/off mode instead.
+                if reasoning_fallback and attempt_no + 1 < len(attempts):
+                    continue
+                return
     except httpx.ConnectError:
-        yield (
-            f"__ERROR__:Could not reach the local {which} model server at {url}. "
-            f"Start it first, e.g.\n"
-            f"llama-server -m \"C:\\Users\\nadee\\PersonalAi\\Models\\"
-            f"{'qwen2.5-1.5b-instruct-q4_k_m.gguf' if which == 'main' else 'qwen2.5-0.5b-instruct-q4_k_m.gguf'}\" "
-            f"--port {url.rsplit(':', 1)[-1]}"
-        )
+        yield f"__ERROR__:Could not reach the local {which} model server at {url}. Reload the model in Models & Voice and retry."
+    except httpx.HTTPError as e:
+        yield f"__ERROR__:Local {which} model connection failed: {str(e)[:300]}"
 
 async def complete(which: str, messages: list[dict], reasoning_level: str, max_tokens: Optional[int] = None) -> str:
     """Non-streaming helper. Optional token cap is useful for recovery calls."""
