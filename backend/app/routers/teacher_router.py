@@ -7,6 +7,9 @@ class Lesson(BaseModel):
     topic:str
     question:str
 
+class Curriculum(BaseModel):
+    topic:str
+
 @router.get("/status")
 def status():
     return cloud_training.status()
