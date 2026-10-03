@@ -2,6 +2,8 @@ import {useEffect,useRef,useState} from "react";
 import {GraduationCap,ArrowRight,CheckCircle2,AlertTriangle,Brain,Cloud,Bot,Square,Sparkles} from "lucide-react";
 import {motion,AnimatePresence} from "motion/react";
 import {api2} from "@/lib/api2";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Turn={actor:"student"|"teacher";label:string;content?:string;thinking?:string};
 type Lesson={id:string;subtopic:string;question:string;turns:Turn[];verified?:boolean};
@@ -14,7 +16,22 @@ function Bubble({turn}:{turn:Turn}){
   {teacher&&<div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-accent shadow-sm"><GraduationCap className="h-4 w-4"/></div>}
   <div className={`max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${teacher?"rounded-tl-md border border-border bg-surface":"rounded-tr-md bg-accent text-white"}`}>
    <div className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${teacher?"text-muted":"text-white/70"}`}>{turn.label}</div>
-   {turn.thinking?<div className="flex min-w-36 items-center gap-2 text-sm"><Dots/><span className={teacher?"text-muted":"text-white/80"}>{turn.thinking}</span></div>:<div className="whitespace-pre-wrap text-sm leading-6">{turn.content||"—"}</div>}
+   {turn.thinking?<div className="flex min-w-36 items-center gap-2 text-sm"><Dots/><span className={teacher?"text-muted":"text-white/80"}>{turn.thinking}</span></div>:<div className={`teacher-chat-markdown text-sm leading-6 ${teacher?"text-ink":"text-white"}`}>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+     h1:({children})=><h3 className="mb-2 mt-1 text-base font-bold">{children}</h3>,
+     h2:({children})=><h3 className="mb-2 mt-1 text-[15px] font-bold">{children}</h3>,
+     h3:({children})=><h4 className="mb-1.5 mt-1 font-semibold">{children}</h4>,
+     p:({children})=><p className="my-1.5 first:mt-0 last:mb-0">{children}</p>,
+     strong:({children})=><strong className="font-bold">{children}</strong>,
+     em:({children})=><em className="italic">{children}</em>,
+     ul:({children})=><ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+     ol:({children})=><ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+     li:({children})=><li className="pl-0.5">{children}</li>,
+     blockquote:({children})=><blockquote className={`my-2 border-l-2 pl-3 italic ${teacher?"border-accent/40 text-muted":"border-white/40 text-white/85"}`}>{children}</blockquote>,
+     code:({children,className})=>className?<code className={`my-2 block overflow-x-auto rounded-lg p-3 font-mono text-xs whitespace-pre-wrap ${teacher?"bg-canvas":"bg-black/20"}`}>{children}</code>:<code className={`rounded px-1 py-0.5 font-mono text-[12px] ${teacher?"bg-canvas":"bg-black/20"}`}>{children}</code>,
+     a:({href,children})=><a href={href} target="_blank" rel="noopener noreferrer" className={`underline underline-offset-2 ${teacher?"text-accent":"text-white"}`}>{children}</a>,
+    }}>{turn.content||"—"}</ReactMarkdown>
+   </div>}
   </div>
   {!teacher&&<div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Bot className="h-4 w-4"/></div>}
  </motion.div>
