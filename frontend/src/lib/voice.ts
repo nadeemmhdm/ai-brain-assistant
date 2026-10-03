@@ -149,3 +149,33 @@ export function startWakeListener(name: string, engine: Engine, onWake: (rest: s
   })();
   return () => ac.abort();
 }
+
+
+export interface LiveVoiceOpts {
+  engine: Engine;
+  signal: AbortSignal;
+  onState?: (s: "listening"|"thinking"|"speaking") => void;
+  onTranscript?: (text: string) => void;
+  onTurn: (text: string) => Promise<string>;
+  voice?: string;
+}
+
+/** Continuous hands-free conversation loop: listen -> AI turn -> speak -> listen again.
+ * Each utterance is endpointed by silence/VAD; the user never presses Send.
+ */
+export async function liveConversation(o: LiveVoiceOpts): Promise<void> {
+  while (!o.signal.aborted) {
+    o.onState?.("listening");
+    const text = await listen({ engine:o.engine, signal:o.signal, maxMs:30000, silenceMs:650, startTimeoutMs:60000 });
+    if (o.signal.aborted) return;
+    if (!text.trim()) continue;
+    o.onTranscript?.(text.trim());
+    o.onState?.("thinking");
+    const answer = await o.onTurn(text.trim());
+    if (o.signal.aborted) return;
+    if (answer.trim()) {
+      o.onState?.("speaking");
+      await speak(answer, o.engine, o.voice);
+    }
+  }
+}
