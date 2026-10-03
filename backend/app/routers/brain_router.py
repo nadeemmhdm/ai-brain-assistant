@@ -12,7 +12,7 @@ def stats():
 def topics():
     with db.get_conn() as conn:
         rows = conn.execute(
-            "SELECT topic, COUNT(*) as items, SUM(CASE WHEN verification_status='verified' THEN 1 ELSE 0 END) as verified "
+            "SELECT topic, COUNT(*) as items, SUM(CASE WHEN verification_status IN ('verified','teacher_verified') THEN 1 ELSE 0 END) as verified "
             "FROM knowledge GROUP BY topic ORDER BY items DESC"
         ).fetchall()
     return [dict(r) for r in rows]
@@ -22,7 +22,7 @@ def knowledge(query: str = "", topic: str = None, limit: int = 20):
     if query:
         return brain.search_knowledge(query, topic=topic, top_k=limit)
     with db.get_conn() as conn:
-        sql = "SELECT id, topic, subtopic, question, summary, verification_status FROM knowledge"
+        sql = "SELECT id, topic, subtopic, question, answer, summary, verification_status FROM knowledge"
         params = []
         if topic:
             sql += " WHERE topic=?"
