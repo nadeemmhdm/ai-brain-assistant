@@ -79,11 +79,17 @@ def remove_password(current: str):
     _SESSIONS.clear()
 
 def login(password: str) -> str:
+    now = time.time()
+    _FAILED_LOGINS[:] = [t for t in _FAILED_LOGINS if now - t < LOGIN_WINDOW_SECONDS]
+    if len(_FAILED_LOGINS) >= MAX_FAILED_LOGINS:
+        raise HTTPException(429, "Too many failed login attempts. Try again shortly.")
     stored = _get_hash()
     if not stored or not _verify_password(password, stored):
+        _FAILED_LOGINS.append(now)
         raise HTTPException(401, "Incorrect passphrase.")
+    _FAILED_LOGINS.clear()
     token = secrets.token_urlsafe(32)
-    _SESSIONS[token] = time.time() + SESSION_TTL_SECONDS
+    _SESSIONS[token] = now + SESSION_TTL_SECONDS
     return token
 
 def logout(token: str):
