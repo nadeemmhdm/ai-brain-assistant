@@ -12,9 +12,11 @@ router = APIRouter(prefix="/api/model", tags=["model"])
 async def status():
     main_status = await llm_client.check_model_status("main")
     agent_status = await llm_client.check_model_status("agent")
+    assigned=model_manager.assignments()
+    running=model_manager.running()
     return {
-        "main": {**main_status, "name": settings.main_model_name},
-        "agent": {**agent_status, "name": settings.agent_model_name},
+        "main": {**main_status, "name": assigned["main"] or running.get("main",{}).get("filename"), "assigned": assigned["main"]},
+        "agent": {**agent_status, "name": assigned["agent"] or running.get("agent",{}).get("filename"), "assigned": assigned["agent"]},
         "reasoning_levels": list(settings.reasoning_levels.keys()),
         "default_reasoning_level": settings.default_reasoning_level,
         "models_dir": os.path.basename(os.path.normpath(settings.models_dir)) or "Models",
@@ -23,7 +25,27 @@ async def status():
 
 @router.get("/local")
 def local():
-    return {"models_dir": os.path.basename(os.path.normpath(settings.models_dir)) or "Models", "models": model_manager.list_local(), "running": model_manager.running()}
+    return {"models_dir": os.path.basename(os.path.normpath(settings.models_dir)) or "Models", "models": model_manager.list_local(), "running": model_manager.running(), "assigned": model_manager.assignments()}
+
+
+class AssignBody(BaseModel):
+    role: str
+    filename: str
+
+@router.post("/assign")
+def assign(body: AssignBody):
+    try:
+        return model_manager.set_assignment(body.role,body.filename)
+    except ValueError as e:
+        raise errors.http(400,"AIB-MDL-002",str(e))
+
+@router.post("/assign/clear")
+def clear_assignment(body: AssignBody):
+    try:
+        model_manager.clear_assignment(body.role)
+        return {"ok":True}
+    except ValueError as e:
+        raise errors.http(400,"AIB-MDL-002",str(e))
 
 class LoadBody(BaseModel):
     role: str
