@@ -115,6 +115,7 @@ async def run_auto_learn(session_id: str, topic: str):
         state["progress_pct"] = 10
 
         all_questions = []
+        seen_questions = set()
         for sub in subtopics:
             if state["control"] == "cancel":
                 raise asyncio.CancelledError()
@@ -124,7 +125,10 @@ async def run_auto_learn(session_id: str, topic: str):
                 "Questions must preserve the exact subject name, avoid speculation, and cover concrete facts that can be verified from sources.",
                 fallback=_question_fallback(topic, sub),
             )
-            all_questions.extend([(sub, q) for q in qs])
+            for q in qs:
+                key = " ".join(q.lower().split())
+                if key not in seen_questions:
+                    seen_questions.add(key); all_questions.append((sub, q))
         state["questions_total"] = len(all_questions)
         state["progress_pct"] = 20
 
