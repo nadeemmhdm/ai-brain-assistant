@@ -27,6 +27,7 @@ export const api2 = {
   modelStatus: () => authFetch(`${BASE}/api/model/status`).then(j<any>),
   localModels: () => authFetch(`${BASE}/api/model/local`).then(j<any>),
   loadModel: (role: string, filename: string) => authFetch(`${BASE}/api/model/load`, json("POST", { role, filename })).then(jAuth),
+  assignModel: (role: string, filename: string) => authFetch(`${BASE}/api/model/assign`, json("POST", { role, filename })).then(jAuth),
   unloadModel: (role: string) => authFetch(`${BASE}/api/model/unload`, json("POST", { role, filename: "" })).then(jAuth),
   importModel: (path: string, mode: "link" | "copy") => authFetch(`${BASE}/api/model/import`, json("POST", { path, mode })).then(jAuth),
   uploadModel: async (file: File) => {
