@@ -10,6 +10,7 @@ const inputCls = "w-full h-9 px-3 rounded-lg bg-surface-2 border border-border t
 export function TrainingView() {
   const [datasets, setDatasets] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [trainModels, setTrainModels] = useState<any[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [items, setItems] = useState<any[]>([]);
   const [name, setName] = useState("");
@@ -24,7 +25,8 @@ export function TrainingView() {
 
   const loadDatasets = () => api.listDatasets().then(setDatasets).catch(() => {});
   const loadJobs = () => api.listTraining().then(setJobs).catch(() => {});
-  useEffect(() => { loadDatasets(); loadJobs(); loadCloud(); }, []);
+  const loadTrainModels = () => api.trainingModels().then(setTrainModels).catch(() => setTrainModels([]));
+  useEffect(() => { loadDatasets(); loadJobs(); loadCloud(); loadTrainModels(); }, []);
 
   // poll while any job is active
   useEffect(() => {
@@ -48,9 +50,19 @@ export function TrainingView() {
   };
 
   const approve = async (it: any, approved: boolean) => {
-    await api.approveItem(it.id, approved);
-    setItems((p) => p.map((x) => (x.id === it.id ? { ...x, approved: approved ? 1 : 0 } : x)));
-    loadDatasets();
+    try {
+      await api.approveItem(it.id, approved);
+      setItems((p) => p.map((x) => (x.id === it.id ? { ...x, approved: approved ? 1 : 0 } : x)));
+      await loadDatasets();
+    } catch(e:any) { toast.error(e.message); }
+  };
+  const approveAll = async (approved:boolean) => {
+    try {
+      await Promise.all(items.map(it=>api.approveItem(it.id,approved)));
+      setItems(p=>p.map(x=>({...x,approved:approved?1:0})));
+      await loadDatasets();
+      toast.success(approved?"All examples approved":"All examples unapproved");
+    } catch(e:any){toast.error(e.message)}
   };
 
   const start = async () => {
@@ -121,7 +133,8 @@ export function TrainingView() {
                           </div>
                         ))}
                       </div>
-                      <div className="p-2 border-t border-border text-right">
+                      <div className="p-2 border-t border-border flex items-center justify-between gap-2">
+                        <div className="flex gap-2"><button onClick={()=>void approveAll(true)} className="text-xs text-emerald-500 hover:underline">Approve all</button><button onClick={()=>void approveAll(false)} className="text-xs text-muted hover:underline">Unapprove all</button></div>
                         <a className="text-xs text-accent hover:underline" href={`${import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000"}/api/dataset/${d.id}/export.jsonl`} target="_blank" rel="noreferrer">
                           Export approved as JSONL
                         </a>
@@ -177,15 +190,19 @@ export function TrainingView() {
               <option value="">Select dataset…</option>
               {datasets.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.approved_count} approved)</option>)}
             </select>
-            <input className={inputCls} placeholder="Base model folder (HF format)" value={form.base_model_path} onChange={(e) => setForm({ ...form, base_model_path: e.target.value })} />
-            <input className={inputCls} placeholder="Output folder for adapter" value={form.output_dir} onChange={(e) => setForm({ ...form, output_dir: e.target.value })} />
+            <select className={inputCls} value={form.base_model_path} onChange={(e)=>setForm({...form,base_model_path:e.target.value})}>
+              <option value="">Choose training model…</option>
+              {trainModels.map((m)=><option key={m.path} value={m.path}>{m.name}</option>)}
+            </select>
+            <input className={inputCls} placeholder="Output folder for LoRA adapter" value={form.output_dir} onChange={(e) => setForm({ ...form, output_dir: e.target.value })} />
             <div className="flex gap-2">
               <input className={inputCls} type="number" title="Epochs" value={form.epochs} onChange={(e) => setForm({ ...form, epochs: +e.target.value })} />
               <input className={inputCls} type="number" step="0.0001" title="Learning rate" value={form.learning_rate} onChange={(e) => setForm({ ...form, learning_rate: +e.target.value })} />
               <input className={inputCls} type="number" title="LoRA rank" value={form.lora_r} onChange={(e) => setForm({ ...form, lora_r: +e.target.value })} />
             </div>
           </div>
-          <Btn onClick={start} disabled={!form.dataset_id || !form.base_model_path || !form.output_dir} className="mt-3">
+          {trainModels.length===0&&<div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-muted">No trainable HuggingFace checkpoint found. GGUF chat models cannot be LoRA-trained directly. Put an HF-format model folder (config.json + model weights) in your Models folder or the adjacent training-models folder, then reopen Training.</div>}
+          <Btn onClick={start} disabled={!form.dataset_id || !form.base_model_path || !form.output_dir || !(datasets.find(d=>d.id===form.dataset_id)?.approved_count>0)} className="mt-3">
             <Play className="h-4 w-4" /> {form.training_mode === "cloud_assisted" ? "Refine with API & start local training" : "Start local training"}
           </Btn>
         </Card>
