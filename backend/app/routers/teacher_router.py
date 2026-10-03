@@ -17,3 +17,10 @@ async def lesson(body:Lesson):
     try: return await teacher_mode.lesson(body.topic.strip()[:200],body.question.strip()[:4000])
     except RuntimeError as e: raise HTTPException(409,str(e))
     except Exception as e: raise HTTPException(502,f"Teacher session failed: {type(e).__name__}: {e}")
+
+@router.post("/curriculum")
+async def curriculum(body:Curriculum):
+    if not body.topic.strip(): raise HTTPException(400,"Topic is required")
+    try: return await teacher_mode.curriculum(body.topic)
+    except RuntimeError as e: raise HTTPException(409,str(e))
+    except Exception as e: raise HTTPException(502,f"Teacher curriculum failed: {type(e).__name__}: {e}")
