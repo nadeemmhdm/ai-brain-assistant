@@ -23,6 +23,8 @@ def create_dataset(name: str, topic: str | None = None, only_verified: bool = Tr
             sql += " WHERE " + " AND ".join(conditions)
         rows = conn.execute(sql, params).fetchall()
 
+        if not rows:
+            return {"id": did, "name": name, "item_count": 0}
         conn.execute(
             "INSERT INTO datasets (id, name, topic, status, created_at) VALUES (?,?,?,?,?)",
             (did, name, topic, "draft", db.now()),
