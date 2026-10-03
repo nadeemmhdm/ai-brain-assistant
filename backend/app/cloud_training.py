@@ -16,6 +16,21 @@ PROVIDERS = {
 ALLOWED_CONFIG = {"active", "model", "base_url"}
 PREFIX = "cloud_teacher_"
 
+def chat_completions_url(cfg):
+    """Return a canonical OpenAI-compatible chat endpoint, including legacy config repair."""
+    base=(cfg.get("base_url") or "").strip().rstrip("/")
+    provider=cfg.get("provider")
+    # Older builds allowed Ollama's native /api/chat endpoint to be saved as a base URL.
+    # Teacher Mode uses the OpenAI-compatible protocol, so repair it transparently.
+    if provider=="ollama_cloud":
+        if base in {"https://ollama.com/api/chat","https://ollama.com/api"}:
+            base="https://ollama.com/v1"
+        elif base=="https://ollama.com":
+            base="https://ollama.com/v1"
+    if base.endswith("/chat/completions"):
+        return base
+    return base+"/chat/completions"
+
 def _key(provider): return f"{PREFIX}key:{provider}"
 def _cfg_key(provider): return f"{PREFIX}cfg:{provider}"
 
@@ -73,7 +88,7 @@ def refine_example(instruction:str,input_text:str,output:str)->str:
     prompt=("Improve the following LOCAL AI training example for accuracy, clarity and concise instruction-following. "
             "Return only the improved response. Do not add private facts or infer user identity.\n\n"
             f"Instruction: {instruction[:4000]}\nInput: {input_text[:4000]}\nCurrent response: {output[:8000]}")
-    url=cfg["base_url"].rstrip("/")+"/chat/completions"
+    url=chat_completions_url(cfg)
     with httpx.Client(timeout=60,follow_redirects=False) as client:
         r=client.post(url,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},
                       json={"model":cfg["model"],"messages":[{"role":"system","content":"You are a dataset teacher. Output only the improved answer."},
