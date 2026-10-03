@@ -107,7 +107,8 @@ export function ChatComposer({
 }) {
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<any>(null);
-  const [fileBusy, setFileBusy] = useState(false);\n  const [toolsOpen, setToolsOpen] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
 
