@@ -38,7 +38,7 @@ def remove(body: PasswordBody):
     return {"ok": True}
 
 @router.post("/logout")
-async def logout(authorization: str | None = None):
+async def logout(authorization: str | None = Header(default=None)):
     if authorization and authorization.startswith("Bearer "):
         auth.logout(authorization[len("Bearer "):])
     return {"ok": True}
