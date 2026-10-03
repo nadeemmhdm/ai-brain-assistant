@@ -13,7 +13,8 @@ import { BrainView } from "@/components/views/BrainView";
 import { TrainingView } from "@/components/views/TrainingView";
 import { ModelsView } from "@/components/views/ModelsView";
 import { GoogleView } from "@/components/views/GoogleView";
-import { McpView } from "@/components/views/McpView";\nimport { TeacherView } from "@/components/views/TeacherView";
+import { McpView } from "@/components/views/McpView";
+import { TeacherView } from "@/components/views/TeacherView";
 import { Toaster } from "@/components/ui/Toaster";
 import { toast } from "@/store/useToast";
 import { motion, AnimatePresence } from "motion/react";
@@ -315,7 +316,9 @@ export default function App() {
 
   async function formatActionResult(action: string, result: any): Promise<string> {
     // Small, local formatter mirroring the backend's actions.format_result, for results approved client-side.
-    if (action === "meet.create" || action === "meet.invite") return `✅ Meeting **${result.summary}** is set for ${result.start}.` + (result.meet_link ? `\n\nMeet link: [${result.meet_link}](${result.meet_link})` : "");
+    if (action === "meet.create" || action === "meet.invite") return `✅ Meeting **${result.summary}** is set for ${result.start}.` + (result.meet_link ? `
+
+Meet link: [${result.meet_link}](${result.meet_link})` : "");
     if (action === "sheets.create") return `✅ Created your sheet: [${result.url}](${result.url})`;
     if (action === "slides.create") return `✅ Created your presentation: [${result.url}](${result.url})`;
     if (action === "gmail.send") return "✅ Email sent.";
@@ -335,7 +338,8 @@ export default function App() {
       {view === "training" && <TrainingView />}
       {view === "models" && <ModelsView />}
       {view === "google" && <GoogleView />}
-      {view === "mcp" && <McpView />}\n      {view === "teacher" && <TeacherView />}
+      {view === "mcp" && <McpView />}
+      {view === "teacher" && <TeacherView />}
       {view === "chat" && (
         <AnimatePresence initial={false}>
           {sidebarOpen && (
