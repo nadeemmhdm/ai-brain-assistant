@@ -46,16 +46,21 @@ def classify_source(url: str) -> tuple[str, str]:
     return "C", "general web/blog"
 
 def _robots_allowed(url: str) -> bool:
+    """Read robots.txt with a hard timeout so a slow site cannot stall Search."""
     try:
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        if not is_public_http_url(robots_url):
+            return False
+        r = httpx.get(robots_url, timeout=3.0, follow_redirects=False,
+                      headers={"User-Agent": settings.user_agent})
+        if r.status_code >= 400:
+            return True
         rp = robotparser.RobotFileParser()
         rp.set_url(robots_url)
-        rp.read()
+        rp.parse(r.text.splitlines())
         return rp.can_fetch(settings.user_agent, url)
     except Exception:
-        # If robots.txt can't be read, err on the side of skipping rather
-        # than assuming access is fine.
         return True
 
 def _ddgs_library(query: str, max_results: int) -> list[dict]:
@@ -165,7 +170,7 @@ def _safe_fetch(url: str, max_redirects: int = 4) -> str | None:
     """Fetch while re-validating every redirect target against the SSRF guard."""
     current = url
     headers = {"User-Agent": settings.user_agent, "Accept": "text/html,application/xhtml+xml"}
-    with httpx.Client(timeout=15, follow_redirects=False, headers=headers) as client:
+    with httpx.Client(timeout=httpx.Timeout(10.0, connect=4.0), follow_redirects=False, headers=headers) as client:
         for _ in range(max_redirects + 1):
             if not is_public_http_url(current):
                 return None
@@ -199,7 +204,6 @@ def fetch_and_extract(url: str) -> Optional[dict]:
             return None
     except Exception:
         return None
-    time.sleep(settings.request_delay_seconds)
     tier, source_type = classify_source(url)
     return {
         "url": url,
