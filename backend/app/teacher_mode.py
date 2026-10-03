@@ -70,7 +70,15 @@ FINAL_VALIDATION_PROMPT = (
     "fully answers the question and consolidates the useful factual teaching/corrections from this "
     "lesson. Remove conversational wording, repetition, grading language and uncertainty that is "
     "not part of the fact itself. Do not add unsupported facts. If materially wrong, incomplete, "
-    "or uncertain, set verified=false."
+    "or uncertain, set verified=false. Never approve or return a canonical answer containing unsupported filler."
+)
+
+FOUNDATION_VALIDATION_PROMPT = (
+    "You are the final strict AI teacher for the FOUNDATION of a topic. The local student must demonstrate "
+    "that it understands what the topic is before any subtopic knowledge may be stored. Return JSON only: "
+    "{verified:boolean, feedback:string, canonical_answer:string}. canonical_answer must clearly and accurately "
+    "define what the topic is, its core purpose/meaning, and essential context as a standalone knowledge note. "
+    "Set verified=false if that foundation is materially incomplete, wrong, vague, or uncertain."
 )
 
 def _bounded_plan(plan: dict, topic: str) -> list[dict]:
@@ -99,7 +107,7 @@ def _bounded_plan(plan: dict, topic: str) -> list[dict]:
         )
     return out
 
-async def _run_lesson(topic: str, subtopic: str, question: str) -> dict:
+async def _run_lesson(topic: str, subtopic: str, question: str, *, foundation: bool = False) -> dict:
     student = (await llm_client.complete("main", [
         {"role": "system", "content": "You are the local student model. Answer accurately and concisely."},
         {"role": "user", "content": question},
@@ -128,7 +136,7 @@ async def _run_lesson(topic: str, subtopic: str, question: str) -> dict:
             )},
         ], "medium")).strip()
     final = await _cloud_json([
-        {"role": "system", "content": FINAL_VALIDATION_PROMPT},
+        {"role": "system", "content": FOUNDATION_VALIDATION_PROMPT if foundation else FINAL_VALIDATION_PROMPT},
         {"role": "user", "content": (
             f"Topic: {topic} | Subtopic: {subtopic} | Question: {question} | "
             f"First student answer: {student} | Teacher feedback: {feedback} | "
@@ -170,7 +178,7 @@ async def curriculum(topic:str)->dict:
     subs = _bounded_plan(plan, topic)
     lessons = []
     foundation = await _run_lesson(
-        topic, "Foundation", f"What is {topic}? Explain its definition, purpose, and essential context."
+        topic, "Foundation", f"What is {topic}? Explain its definition, purpose, and essential context.", foundation=True
     )
     lessons.append({"name": "Foundation", "lessons": [foundation]})
     saved = 1 if foundation["verified"] else 0
@@ -244,7 +252,7 @@ async def curriculum_events(topic: str):
 
         yield {"type": "thinking", "lesson_id": lesson_id, "actor": "teacher", "detail": "API Teacher is editing and validating the final knowledge…"}
         final = await _cloud_json([
-            {"role": "system", "content": FINAL_VALIDATION_PROMPT},
+            {"role": "system", "content": FOUNDATION_VALIDATION_PROMPT if name == "Foundation" else FINAL_VALIDATION_PROMPT},
             {"role": "user", "content": (
                 f"Topic: {topic} | Subtopic: {name} | Question: {q} | First student answer: {student} | "
                 f"Teacher feedback: {feedback} | Teacher correction: {corrected} | Revised student answer: {retry}"

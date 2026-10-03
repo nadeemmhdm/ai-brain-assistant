@@ -401,6 +401,32 @@ async def chat(body: ChatRequest):
                 yield ev
             return
 
+        # ---- trivial social turns: keep both Main and Fast conversationally sane ----
+        # Small local models can overfit persona text and answer "hi" with an autobiography.
+        # Handle only unmistakable social turns here; all substantive questions still go to
+        # the user's selected model.
+        social = re.sub(r"[.!?\s]+", "", user_text.lower())
+        social_replies = {
+            "hi": "Hi! How can I help?",
+            "hello": "Hello! How can I help?",
+            "hey": "Hey! How can I help?",
+            "thanks": "You're welcome!",
+            "thankyou": "You're welcome!",
+            "ok": "Okay.",
+            "okay": "Okay.",
+            "bye": "Bye! Take care.",
+            "goodbye": "Goodbye! Take care.",
+        }
+        if social in social_replies:
+            text = social_replies[social]
+            for piece in _words(text):
+                yield _sse("delta", {"text": piece})
+            aid = await save_and_finish(text)
+            yield _sse("done", {"id": aid, "content": text, "thinking": None, "sources": [], "confidence": None, "action": None})
+            async for ev in title_events():
+                yield ev
+            return
+
         # ---- explicit "remember that ..." ----
         remembered = memory.extract_explicit(user_text) if not body.regenerate_of else None
         if remembered:
@@ -486,7 +512,7 @@ async def chat(body: ChatRequest):
             system += ("\n\nCONVERSATION CONTINUITY RULE: Treat recent user and assistant messages as one continuous dialogue. "
                        "Resolve this/that/it/they and short follow-ups against immediately preceding turns. Do not treat a follow-up "
                        "as an unrelated new question.")
-        system += "\n\nAccuracy rules: First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request was addressed and that you did not invent specifics. "
+        system += "\n\nRESPONSE RELEVANCE RULE: Answer only what the user asked. Do not add unrelated biography, model history, creator details, age, birthday, links, capabilities, or self-description unless specifically requested. Keep simple questions simple. Main and Fast should both behave as capable conversational assistants; model choice changes the engine, not the relevance standard.\n\nAccuracy rules: First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request was addressed and that you did not invent specifics. "
         if understood_query != understanding.normalize(user_text):
             system += f"\nRetrieval interpretation (helper only; the original user message remains authoritative): {understood_query}"
         if grounded:
