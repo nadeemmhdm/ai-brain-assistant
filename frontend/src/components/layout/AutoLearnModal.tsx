@@ -59,7 +59,7 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-muted mb-3">
               Give AI a topic. It researches authoritative web and scholarly sources, cross-checks
               independent evidence, and stores provenance-backed knowledge in the local AI Brain.
-              Once learned, that knowledge remains available for fast offline retrieval.
+              If a Cloud Teacher API is active, verified source evidence is also checked and cleaned by that cloud model before Brain storage. Once learned, that knowledge remains available for fast offline retrieval.
             </p>
             <input
               value={topic}
@@ -88,6 +88,8 @@ export function AutoLearnModal({ onClose }: { onClose: () => void }) {
               <MiniStat label="Knowledge" value={status?.knowledge_items} />
               <MiniStat label="Verified" value={status?.verified_items} />
               <MiniStat label="Rejected" value={status?.rejected_items} />
+              <MiniStat label="Cloud checked" value={status?.cloud_verifications} />
+              <MiniStat label="Cloud rejected" value={status?.cloud_rejections} />
               <MiniStat label="Stage" value={status?.learning_stage} />
               <MiniStat label="Status" value={status?.status} />
             </div>
