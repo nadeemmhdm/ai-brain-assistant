@@ -111,6 +111,16 @@ export function ChatComposer({
   const [toolsOpen, setToolsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const toolsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const closeOutside = (e: PointerEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) setToolsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [toolsOpen]);
 
   useEffect(() => {
     if (ref.current) {
@@ -162,7 +172,7 @@ export function ChatComposer({
         <div className="composer-toolbar border-t border-border/70 px-3 py-2.5 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1">
             <motion.button whileTap={{scale:.9}} onClick={() => fileRef.current?.click()} disabled={fileBusy} title="Attach file" className="composer-icon-btn">{fileBusy?<Loader2 className="h-4 w-4 animate-spin"/>:<Paperclip className="h-4 w-4"/>}</motion.button>
-            <div className="relative">
+            <div className="relative" ref={toolsRef}>
               <motion.button whileTap={{scale:.9}} onClick={()=>setToolsOpen(v=>!v)} className={cn("composer-tool-trigger",toolsOpen&&"bg-surface-2 text-ink")}><SlidersHorizontal className="h-4 w-4"/><span>Tools</span>{(searchMode!=="off"||reasoningLevel!=="off"||skillId)&&<span className="h-1.5 w-1.5 rounded-full bg-accent"/>}</motion.button>
               {toolsOpen&&<motion.div initial={{opacity:0,y:6,scale:.98}} animate={{opacity:1,y:0,scale:1}} className="absolute bottom-full left-0 mb-2 w-[300px] rounded-2xl border border-border bg-surface p-2 shadow-2xl z-30">
                 <div className="px-2 py-1 text-[11px] uppercase tracking-wider text-muted">Chat tools</div>
