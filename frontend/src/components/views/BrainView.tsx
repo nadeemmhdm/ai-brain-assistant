@@ -41,6 +41,13 @@ export function BrainView({ onOpenAutoLearn }: { onOpenAutoLearn: () => void }) 
     load();
   };
 
+  const delSession = async (id: string) => {
+    await api.deleteBrainSession(id);
+    setSessions((p) => p.filter((s) => s.id !== id));
+    toast.success("Learning history deleted");
+    load();
+  };
+
   const cards = stats ? [
     { label: "Topics", value: stats.total_topics, icon: Layers },
     { label: "Knowledge items", value: stats.total_knowledge_items, icon: BookOpen },
@@ -124,9 +131,15 @@ export function BrainView({ onOpenAutoLearn }: { onOpenAutoLearn: () => void }) 
             <h2 className="text-sm font-medium mb-2">Learning history</h2>
             <div className="space-y-1.5">
               {sessions.slice(0, 8).map((s) => (
-                <div key={s.id} className="flex items-center justify-between text-xs rounded-lg border border-border bg-surface px-3 py-2">
-                  <span className="font-medium">{s.topic}</span>
-                  <span className="text-muted">{s.stats?.knowledge_items ?? 0} items · {s.status} · {new Date(s.started_at * 1000).toLocaleDateString()}</span>
+                <div key={s.id} className="group flex items-center justify-between gap-3 text-xs rounded-lg border border-border bg-surface px-3 py-2">
+                  <span className="font-medium min-w-0 truncate">{s.topic}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-muted">{s.stats?.knowledge_items ?? 0} items · {s.status} · {new Date(s.started_at * 1000).toLocaleDateString()}</span>
+                    <button onClick={() => void delSession(s.id)} title="Delete learning history"
+                      className="p-1 rounded text-muted opacity-60 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 transition-all">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
