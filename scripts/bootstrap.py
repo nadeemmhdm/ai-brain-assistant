@@ -265,6 +265,14 @@ def prepare():
     app_updated = check_and_install_app_update()
     state = load_state()
     py = ensure_backend(state, force=app_updated)
+    # Release-integrity preflight: catch router/import mismatches before spawning
+    # backend + frontend processes, with an actionable error instead of a long
+    # uvicorn traceback.
+    smoke = run([str(py), "-c", "import main; from app import teacher_mode; from app.routers import teacher_router; assert callable(teacher_mode.curriculum); assert teacher_router.Curriculum(topic='smoke').topic == 'smoke'"], cwd=BACKEND, timeout=60)
+    if smoke.returncode:
+        detail = (smoke.stderr or smoke.stdout or "").strip()
+        raise RuntimeError("Backend release-integrity check failed. " + detail[-1200:])
+    print("[check] Backend startup imports: OK")
     npm = ensure_node()
     ensure_frontend(state, npm, force=app_updated)
     save_state(state)
