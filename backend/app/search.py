@@ -93,14 +93,46 @@ def _ddg_html_fallback(query: str, max_results: int) -> list[dict]:
         out.append({"title": a.get_text(strip=True), "url": url, "snippet": snippet.get_text(strip=True) if snippet else ""})
     return out
 
+def _ddg_lite_fallback(query: str, max_results: int) -> list[dict]:
+    """Second no-key DDG endpoint. Some networks block html.duckduckgo.com
+    while lite.duckduckgo.com still works."""
+    resp = httpx.get("https://lite.duckduckgo.com/lite/", params={"q": query},
+                     timeout=10, follow_redirects=True, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    out, seen = [], set()
+    for a in soup.select("a[href]"):
+        label = a.get_text(" ", strip=True)
+        href = a.get("href", "")
+        if not label or not href:
+            continue
+        m = re.search(r"uddg=([^&]+)", href)
+        url = unquote(m.group(1)) if m else href
+        if not url.startswith(("http://", "https://")) or "duckduckgo.com" in urlparse(url).netloc:
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append({"title": label, "url": url, "snippet": ""})
+        if len(out) >= max_results:
+            break
+    return out
+
 def duckduckgo_search(query: str, max_results: int = 8) -> list[dict]:
-    try:
-        results = _ddgs_library(query, max_results)
-        if results:
-            return results
-    except Exception:
-        pass
-    return _ddg_html_fallback(query, max_results)     # library missing/blocked/empty -> try the plain endpoint
+    errors = []
+    for fn in (_ddgs_library, _ddg_html_fallback, _ddg_lite_fallback):
+        try:
+            results = fn(query, max_results)
+            results = [r for r in results if (r.get("url") or "").startswith(("http://", "https://"))]
+            if results:
+                return results
+        except Exception as e:
+            errors.append(f"{fn.__name__}: {type(e).__name__}")
+    raise SearchError("All DuckDuckGo discovery paths failed" + (f" ({'; '.join(errors)})" if errors else ""))
 
 PROVIDERS = {
     "duckduckgo": duckduckgo_search,
