@@ -99,6 +99,10 @@ export const api2 = {
   translateCatalog: () => authFetch(`${BASE}/api/translate/catalog`).then(j<any[]>),
   translateInstall: (from_code: string, to_code: string) => authFetch(`${BASE}/api/translate/install`, json("POST", { from_code, to_code })).then(jAuth),
 
+  // autonomous Teacher Mode
+  teacherStatus: () => authFetch(`${BASE}/api/teacher/status`).then(j<any>),
+  teacherCurriculum: (topic: string) => authFetch(`${BASE}/api/teacher/curriculum`, json("POST", { topic })).then(jAuth),
+
   // privacy-scoped cloud training teachers
   cloudTrainingProviders: () => authFetch(`${BASE}/api/training/cloud/providers`).then(j<any>),
   cloudTrainingConfigure: (body: any) => authFetch(`${BASE}/api/training/cloud/providers`, json("PUT", body)).then(jAuth),
