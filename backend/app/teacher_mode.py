@@ -77,3 +77,70 @@ async def curriculum(topic:str)->dict:
             "verified":saved,"total":total,"confidence":{"percent":pct,"grade":confidence_grade(pct)},
             "provider":cloud_training.status()["active_provider"],
             "privacy":"Only generated topic curriculum and local lesson answers were sent to the configured API teacher."}
+
+
+async def curriculum_events(topic: str):
+    """Yield visible Teacher Mode conversation events as each lesson progresses."""
+    topic=topic.strip()[:200]
+    yield {"type":"status","stage":"planning","detail":"API Teacher is building the curriculum…"}
+    plan=await _cloud_json([
+      {"role":"system","content":"Design a compact factual curriculum. Return JSON only: {summary:string, subtopics:[{name:string, questions:[string]}]}. Use 4-8 subtopics and 2-4 concrete questions each. Prioritize current knowledge where facts can change. Never request or infer user identity, chats, files, memories, credentials, or private data."},
+      {"role":"user","content":f"Public learning topic: {topic}"}])
+    subs=plan.get("subtopics") if isinstance(plan.get("subtopics"),list) else []
+    yield {"type":"plan","topic":topic,"summary":str(plan.get("summary",""))[:4000],
+           "subtopics":[{"name":str(s.get("name",""))[:200],"questions":[str(q)[:4000] for q in (s.get("questions") if isinstance(s.get("questions"),list) else [])[:4]]} for s in subs[:8]]}
+    saved=0; total=0
+    for si,sub in enumerate(subs[:8]):
+        name=str(sub.get("name","")).strip()[:200]
+        qs=sub.get("questions") if isinstance(sub.get("questions"),list) else []
+        for qi,q0 in enumerate(qs[:4]):
+            q=str(q0).strip()[:4000]
+            if not q: continue
+            total+=1
+            lesson_id=f"{si}-{qi}"
+            full_topic=f"{topic} / {name}"
+            yield {"type":"question","lesson_id":lesson_id,"subtopic":name,"question":q}
+            yield {"type":"thinking","lesson_id":lesson_id,"actor":"student","detail":"Local AI is thinking…"}
+            student=(await llm_client.complete("main",[
+              {"role":"system","content":"You are the local student model. Answer accurately and concisely."},
+              {"role":"user","content":q}], "medium")).strip()
+            yield {"type":"message","lesson_id":lesson_id,"actor":"student","label":"Local AI","content":student}
+
+            yield {"type":"thinking","lesson_id":lesson_id,"actor":"teacher","detail":"API Teacher is reviewing…"}
+            review=await _cloud_json([
+              {"role":"system","content":"You are a strict AI teacher. Return JSON only: {correct:boolean, feedback:string, corrected_answer:string}. Do not claim certainty when unsure."},
+              {"role":"user","content":f"Topic: {full_topic} | Question: {q} | Local student's answer: {student}"}])
+            feedback=str(review.get("feedback",""))[:8000]
+            corrected=str(review.get("corrected_answer",""))[:12000]
+            teacher_text=feedback + (f"\n\nCorrection: {corrected}" if corrected and corrected!=student else "")
+            yield {"type":"message","lesson_id":lesson_id,"actor":"teacher","label":"API Teacher","content":teacher_text}
+
+            retry=student
+            if not bool(review.get("correct")):
+                yield {"type":"thinking","lesson_id":lesson_id,"actor":"student","detail":"Local AI is learning from the feedback…"}
+                retry=(await llm_client.complete("main",[
+                  {"role":"system","content":"You are the local student. Learn from the teacher feedback for this turn. Produce a corrected answer; do not merely repeat the feedback."},
+                  {"role":"user","content":f"Question: {q} | Your first answer: {student} | Teacher feedback: {feedback} | Teacher proposed correction: {corrected}"}],"medium")).strip()
+                yield {"type":"message","lesson_id":lesson_id,"actor":"student","label":"Local AI · retry","content":retry}
+
+            yield {"type":"thinking","lesson_id":lesson_id,"actor":"teacher","detail":"API Teacher is validating the lesson…"}
+            final=await _cloud_json([
+              {"role":"system","content":"Validate the student's revised answer. Return JSON only: {verified:boolean, feedback:string, canonical_answer:string}. Set verified=false if materially wrong, incomplete, or uncertain."},
+              {"role":"user","content":f"Topic: {full_topic} | Question: {q} | Revised local answer: {retry}"}])
+            verified=bool(final.get("verified"))
+            canonical=str(final.get("canonical_answer") or retry).strip()[:16000]
+            kid=None
+            if verified and canonical:
+                kid=brain.add_knowledge(full_topic,"Teacher Mode",q,canonical,
+                  "Validated through local-student/cloud-teacher review loop.",[],
+                  verification_status="teacher_verified",
+                  conflict={"provenance":"cloud_teacher","provider":cloud_training.status()["active_provider"],
+                            "note":"Teacher-model validation; not independent web-source verification."})
+                saved+=1
+            final_text=str(final.get("feedback") or final.get("canonical_answer") or "Validation completed.")[:12000]
+            yield {"type":"message","lesson_id":lesson_id,"actor":"teacher","label":"API Teacher · final validation","content":final_text}
+            yield {"type":"lesson_done","lesson_id":lesson_id,"verified":verified,"brain_id":kid}
+    pct=round(saved*100/total) if total else 0
+    yield {"type":"done","topic":topic,"verified":saved,"total":total,
+           "confidence":{"percent":pct,"grade":confidence_grade(pct)},
+           "provider":cloud_training.status()["active_provider"]}
