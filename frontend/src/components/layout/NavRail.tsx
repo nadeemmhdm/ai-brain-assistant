@@ -8,7 +8,8 @@ const ITEMS: { id: View; icon: any; label: string }[] = [
   { id: "chat", icon: MessageSquare, label: "Chat" },
   { id: "brain", icon: Database, label: "AI Brain" },
   { id: "models", icon: Boxes, label: "Models" },
-  { id: "training", icon: Cpu, label: "Training" },\n  { id: "teacher", icon: GraduationCap, label: "Teacher" },
+  { id: "training", icon: Cpu, label: "Training" },
+  { id: "teacher", icon: GraduationCap, label: "Teacher" },
   { id: "google", icon: Mail, label: "Google" },
   { id: "mcp", icon: Plug, label: "MCP" },
 ];
