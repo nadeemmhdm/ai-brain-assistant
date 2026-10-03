@@ -161,16 +161,24 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     fresh = needs_fresh_web(question)
     current_year = datetime.now().year
     base_query = f"{question} {current_year}" if fresh and str(current_year) not in question else question
-    queries = await _plan_queries(base_query, cfg["queries"]) if mode == "deep" else [base_query]
+    # Dual-track discovery: always balance current developments with durable historical context.
+    # Quick stays compact; Deep expands both tracks.
+    recent_q = f"{question} latest current {current_year}"
+    history_q = f"{question} history background origin"
+    if mode == "deep":
+        planned = await _plan_queries(base_query, max(2, cfg["queries"]))
+        queries = list(dict.fromkeys([recent_q, history_q] + planned))[:6]
+    else:
+        queries = list(dict.fromkeys([recent_q, history_q]))
     await emit("searching", f"Searching the web ({len(queries)} quer{'y' if len(queries)==1 else 'ies'})…")
 
-    results, seen, search_errors = [], set(), []
+    results, seen, search_errors = [], set(), []\n    track_by_url = {}
     for q in queries:
         try:
-            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2, not fresh):
+            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2, False if ("latest current" in q or fresh) else True):
                 url = r.get("url")
                 if url and url not in seen:
-                    seen.add(url); results.append(r)
+                    seen.add(url); results.append(r); track_by_url[url] = "current" if "latest current" in q else ("historical" if "history background" in q else "general")
         except SearchError as e:
             search_errors.append(str(e))
 
@@ -194,7 +202,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         elif r.get("snippet"):
             # page blocked/unreadable: fall back to the search snippet, clearly short
             pages.append({"url": r["url"], "title": r.get("title") or r["url"], "text": r["snippet"],
-                          "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "", "fetched_at": time.time(), "snippet_only": True})
+                          "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "", "fetched_at": time.time(), "snippet_only": True, "research_track": track_by_url.get(r["url"], "general")})
 
     await emit("ranking", "Picking the most relevant passages…")
     qvec = brain.embed(question)
@@ -230,7 +238,7 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
                         "trust_tier": p["trust_tier"], "source_type": p["source_type"], "fetched_at": p["fetched_at"]})
     for pi, c in chosen:
         p = pages[pi]
-        blocks.append(f"[{idx_of[pi]}] ({p['title']} — trust {p['trust_tier']})\n{c}")
+        blocks.append(f"[{idx_of[pi]}] ({p['title']} — trust {p['trust_tier']}; {p.get('research_track','general')} track)\\n{c}")
 
     domains = {urlparse(s["url"]).netloc.removeprefix("www.") for s in sources}
     return {
