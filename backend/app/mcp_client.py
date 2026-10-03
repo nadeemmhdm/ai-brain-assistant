@@ -27,29 +27,13 @@ from . import db
 from .config import settings
 
 CATALOG = [
-    {"key": "filesystem", "name": "Filesystem", "package": "@modelcontextprotocol/server-filesystem",
-     "description": "Read and write files in one folder you choose. The server can only see that folder.",
-     "needs_path": True, "risk": "write"},
-    {"key": "fetch", "name": "Web Fetch", "package": "@modelcontextprotocol/server-fetch",
-     "description": "Fetch a web page and return clean, readable text.", "needs_path": False, "risk": "read"},
-    {"key": "git", "name": "Git", "package": "@modelcontextprotocol/server-git",
-     "description": "Read history, diffs and status of a local git repository (read-only).",
-     "needs_path": True, "risk": "read"},
-    {"key": "sequential-thinking", "name": "Sequential Thinking", "package": "@modelcontextprotocol/server-sequential-thinking",
-     "description": "A structured scratchpad tool the model can use to reason through hard, multi-step problems.",
-     "needs_path": False, "risk": "read"},
-    {"key": "memory", "name": "Memory (knowledge graph)", "package": "@modelcontextprotocol/server-memory",
-     "description": "A simple local knowledge graph the model can save entities and relations to across a session.",
-     "needs_path": False, "risk": "write"},
-    {"key": "time", "name": "Time", "package": "@modelcontextprotocol/server-time",
-     "description": "Current time and date conversions between timezones -- no internet needed.",
-     "needs_path": False, "risk": "read"},
-    {"key": "sqlite", "name": "SQLite", "package": "@modelcontextprotocol/server-sqlite",
-     "description": "Query and inspect a local SQLite database file you choose (read/write to that one file).",
-     "needs_path": True, "risk": "write"},
-    {"key": "everything", "name": "Everything (demo/test)", "package": "@modelcontextprotocol/server-everything",
-     "description": "The official reference/test server -- exercises every MCP feature. Useful to confirm MCP itself is working.",
-     "needs_path": False, "risk": "read"},
+    {"key":"filesystem","name":"Filesystem","package":"@modelcontextprotocol/server-filesystem@2026.8.31","runner":"npx","description":"Secure file operations inside a folder you choose.","needs_path":True,"risk":"write"},
+    {"key":"memory","name":"Memory (knowledge graph)","package":"@modelcontextprotocol/server-memory@2026.8.31","runner":"npx","description":"Local knowledge-graph memory.","needs_path":False,"risk":"write"},
+    {"key":"sequential-thinking","name":"Sequential Thinking","package":"@modelcontextprotocol/server-sequential-thinking@2026.8.31","runner":"npx","description":"Structured reflective problem-solving.","needs_path":False,"risk":"read"},
+    {"key":"everything","name":"Everything (demo/test)","package":"@modelcontextprotocol/server-everything@2026.8.31","runner":"npx","description":"Official MCP reference/test server.","needs_path":False,"risk":"read"},
+    {"key":"fetch","name":"Web Fetch","package":"mcp-server-fetch","runner":"uvx","description":"Official Python web fetch server. Requires uv/uvx.","needs_path":False,"risk":"read"},
+    {"key":"git","name":"Git","package":"mcp-server-git","runner":"uvx","description":"Official Python Git server. Requires uv/uvx.","needs_path":True,"risk":"read"},
+    {"key":"time","name":"Time","package":"mcp-server-time","runner":"uvx","description":"Official Python time/timezone server. Requires uv/uvx.","needs_path":False,"risk":"read"},
 ]
 CATALOG_BY_KEY = {c["key"]: c for c in CATALOG}
 
@@ -65,6 +49,11 @@ class ServerHandle:
     stderr_lines: list = field(default_factory=list)
 
 RUNNING: dict[str, ServerHandle] = {}   # server row id -> handle
+
+def uvx_path() -> str:
+    p = shutil.which("uvx.exe") if os.name == "nt" else shutil.which("uvx")
+    if not p: raise ValueError("This MCP server uses Python and needs uv/uvx. Install uv, then restart AI Brain.")
+    return p
 
 def npx_path() -> str:
     p = shutil.which("npx.cmd") if os.name == "nt" else shutil.which("npx")
@@ -162,7 +151,14 @@ async def start(sid: str) -> ServerHandle:
     RUNNING[sid] = h
     try:
         args = db.loads(row["args_json"]) or []
-        cmd = [npx_path(), "-y", row["command"], *args] if row["command"].startswith("@") else [row["command"], *args]
+        entry = CATALOG_BY_KEY.get(row["key"]) if row["key"] else None
+        runner = (entry or {}).get("runner")
+        if runner == "uvx":
+            cmd = [uvx_path(), row["command"], *args]
+        elif row["command"].startswith("@"):
+            cmd = [npx_path(), "-y", row["command"], *args]
+        else:
+            cmd = [row["command"], *args]
         proc = await asyncio.create_subprocess_exec(*cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
                                                      stderr=asyncio.subprocess.PIPE,
                                                      cwd=settings.data_dir)

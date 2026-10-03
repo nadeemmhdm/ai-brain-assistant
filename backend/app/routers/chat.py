@@ -11,7 +11,7 @@ from typing import Optional, Union
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from .. import db, llm_client, brain, memory, research, identity, actions, verify, google_api, skills, translate, understanding
+from .. import db, llm_client, brain, memory, research, identity, actions, verify, google_api, skills, translate, understanding, math_logic
 from ..config import settings
 from .settings_router import get_value
 
@@ -334,6 +334,23 @@ async def chat(body: ChatRequest):
                     yield ev
                 return
 
+        # ---- deterministic math: exact local solver before LLM generation ----
+        try:
+            solved = math_logic.calculate(user_text)
+        except (ValueError, ZeroDivisionError, SyntaxError, OverflowError) as e:
+            solved = {"error": str(e)}
+        if solved:
+            if solved.get("error"):
+                msg = f"I couldn't safely evaluate that expression: {solved['error']}."
+            elif solved["kind"] == "equation":
+                msg = f"{solved['variable']} = {solved['answer']:g}"
+            else:
+                value = solved["answer"]; msg = f"{value:g}" if isinstance(value,(int,float)) else str(value)
+            for piece in _words(msg): yield _sse("delta", {"text":piece})
+            aid = await save_and_finish(msg)
+            yield _sse("done", {"id":aid,"content":msg,"thinking":None,"sources":[],"confidence":{"percent":100,"basis":"deterministic local math engine"}})
+            return
+
         # ---- who-am-I questions are answered from identity.py, not by the model ----
         canned = identity.identity_answer(user_text, ai_name, user_name)
         if canned:
@@ -445,6 +462,9 @@ async def chat(body: ChatRequest):
             system = persona_prompt(body.voice)
         if remembered:
             system += f"\nThe user just asked you to remember: \"{remembered}\". Confirm briefly. "
+        logic_hint = math_logic.logic_context(user_text)
+        if logic_hint:
+            system += "\n\n" + logic_hint
         mems = memory.relevant(understood_query)
         if mems:
             system += "\n\nThings the user asked you to remember:\n- " + "\n- ".join(mems)
