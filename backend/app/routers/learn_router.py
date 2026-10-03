@@ -39,18 +39,24 @@ def status(session_id: str):
 
 @router.post("/pause")
 def pause(session_id: str):
-    if session_id in learn.SESSIONS:
-        learn.SESSIONS[session_id]["control"] = "pause"
-    return {"ok": True}
+    state = learn.SESSIONS.get(session_id)
+    if not state: raise errors.http(404, "AIB-LRN-003", "Unknown learning session.")
+    if state["status"] in ("completed","cancelled","error"): return {"ok": False, "status": state["status"]}
+    state["control"] = "pause"; state["status"] = "paused"; state["current_task"] = "Paused"
+    return {"ok": True, "status": "paused"}
 
 @router.post("/resume")
 def resume(session_id: str):
-    if session_id in learn.SESSIONS:
-        learn.SESSIONS[session_id]["control"] = "run"
-    return {"ok": True}
+    state = learn.SESSIONS.get(session_id)
+    if not state: raise errors.http(404, "AIB-LRN-003", "Unknown learning session.")
+    state["control"] = "run"; state["status"] = "running"; state["current_task"] = "Resuming trusted research…"
+    return {"ok": True, "status": "running"}
 
 @router.post("/cancel")
 def cancel(session_id: str):
-    if session_id in learn.SESSIONS:
-        learn.SESSIONS[session_id]["control"] = "cancel"
-    return {"ok": True}
+    state = learn.SESSIONS.get(session_id)
+    if not state: raise errors.http(404, "AIB-LRN-003", "Unknown learning session.")
+    state["control"] = "cancel"; state["current_task"] = "Cancelling…"
+    task = learn.TASKS.get(session_id)
+    if task and not task.done(): task.cancel()
+    return {"ok": True, "status": "cancelling"}
