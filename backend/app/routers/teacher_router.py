@@ -1,4 +1,6 @@
+import json
 from fastapi import APIRouter,HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from .. import teacher_mode,cloud_training
 
@@ -27,3 +29,17 @@ async def curriculum(body:Curriculum):
     try: return await teacher_mode.curriculum(body.topic)
     except RuntimeError as e: raise HTTPException(409,str(e))
     except Exception as e: raise HTTPException(502,f"Teacher curriculum failed: {type(e).__name__}: {e}")
+
+
+@router.post("/curriculum/stream")
+async def curriculum_stream(body:Curriculum):
+    if not body.topic.strip():
+        raise HTTPException(400,"Topic is required")
+    async def gen():
+        try:
+            async for event in teacher_mode.curriculum_events(body.topic):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type':'error','message':f'{type(e).__name__}: {e}'})}\n\n"
+    return StreamingResponse(gen(),media_type="text/event-stream",
+                             headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
