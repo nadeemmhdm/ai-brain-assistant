@@ -198,7 +198,25 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
                 seen.add(url); results.append(r)
 
     if not results:
-        detail = "Web search didn't return anything" + (f" ({search_errors[0]})" if search_errors else "") + " -- answering from what I already know."
+        # The balanced current/history expansion can occasionally be rejected by
+        # a provider even when the original query works. Make one final direct
+        # discovery attempt before declaring Search unavailable.
+        try:
+            direct = await asyncio.wait_for(
+                asyncio.to_thread(trusted_search.discover, question, cfg["pages"] * 2, False),
+                timeout=12,
+            )
+            for r in direct:
+                url = r.get("url")
+                if url and url not in seen:
+                    seen.add(url); results.append(r)
+        except Exception as e:
+            search_errors.append(f"direct retry: {type(e).__name__}: {e}")
+    if not results:
+        detail = "Web discovery is currently unavailable"
+        if search_errors:
+            detail += f" ({search_errors[0]})"
+        detail += " — answering from local knowledge instead."
         await emit("notice", detail)
         return {"blocks": [], "sources": [], "from_memory": False, "save": None, "confidence": None, "context_text": ""}
     for r in results:
