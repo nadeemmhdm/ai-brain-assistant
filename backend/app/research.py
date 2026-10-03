@@ -15,6 +15,7 @@ instructions found inside it.
 import asyncio
 import re
 import time
+from datetime import datetime
 from urllib.parse import urlparse
 from . import db, brain, search, llm_client, trusted_search
 from .search import SearchError
@@ -177,14 +178,24 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     await emit("searching", f"Searching the web ({len(queries)} quer{'y' if len(queries)==1 else 'ies'})…")
 
     results, seen, search_errors = [], set(), []
-    for q in queries:
+    async def discover_one(q: str):
         try:
-            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2, not fresh):
-                url = r.get("url")
-                if url and url not in seen:
-                    seen.add(url); results.append(r)
-        except SearchError as e:
-            search_errors.append(str(e))
+            return await asyncio.wait_for(
+                asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2, not fresh),
+                timeout=12,
+            )
+        except asyncio.TimeoutError:
+            search_errors.append(f"Search timed out for: {q[:80]}")
+            return []
+        except Exception as e:
+            search_errors.append(f"{type(e).__name__}: {e}")
+            return []
+    batches = await asyncio.gather(*(discover_one(q) for q in queries))
+    for batch in batches:
+        for r in batch:
+            url = r.get("url")
+            if url and url not in seen:
+                seen.add(url); results.append(r)
 
     if not results:
         detail = "Web search didn't return anything" + (f" ({search_errors[0]})" if search_errors else "") + " -- answering from what I already know."
@@ -195,18 +206,23 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
     results.sort(key=lambda r: "ABCD".index(r["tier"]))
 
     pages = []
-    for r in results:
-        if len(pages) >= cfg["pages"]:
-            break
-        await emit("reading", f"Reading {urlparse(r['url']).netloc}…", {"done": len(pages), "total": cfg["pages"]})
-        page = await asyncio.to_thread(search.fetch_and_extract, r["url"])
+    candidates = results[:max(cfg["pages"] * 2, cfg["pages"])]
+    await emit("reading", f"Reading up to {cfg['pages']} sources in parallel…", {"done": 0, "total": cfg["pages"]})
+    async def read_one(r: dict):
+        try:
+            page = await asyncio.wait_for(asyncio.to_thread(search.fetch_and_extract, r["url"]), timeout=14)
+        except (asyncio.TimeoutError, Exception):
+            page = None
         if page:
             page["title"] = r.get("title") or r["url"]
-            pages.append(page)
-        elif r.get("snippet"):
-            # page blocked/unreadable: fall back to the search snippet, clearly short
-            pages.append({"url": r["url"], "title": r.get("title") or r["url"], "text": r["snippet"],
-                          "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "", "fetched_at": time.time(), "snippet_only": True})
+            return page
+        if r.get("snippet"):
+            return {"url": r["url"], "title": r.get("title") or r["url"], "text": r["snippet"],
+                    "trust_tier": r["tier"], "source_type": r["stype"], "content_hash": "",
+                    "fetched_at": time.time(), "snippet_only": True}
+        return None
+    fetched = await asyncio.gather(*(read_one(r) for r in candidates))
+    pages = [p for p in fetched if p][:cfg["pages"]]
 
     await emit("ranking", "Picking the most relevant passages…")
     qvec = brain.embed(question)
