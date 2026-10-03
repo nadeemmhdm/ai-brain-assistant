@@ -114,21 +114,53 @@ def check_and_install_app_update():
     if not git or not (ROOT / ".git").is_dir():
         print("[update] Auto-install skipped: this copy is not a git checkout (or git is unavailable).")
         return False
-    if run([git, "status", "--porcelain"]).stdout.strip():
-        print("[update] Auto-install skipped: local changes detected; nothing was overwritten.")
-        return False
+    dirty = run([git, "status", "--porcelain", "--untracked-files=all"]).stdout.strip()
+    stash_created = False
+    stash_ref = None
+    if dirty:
+        changed = [line[3:] if len(line) > 3 else line for line in dirty.splitlines()]
+        preview = ", ".join(changed[:4]) + ("…" if len(changed) > 4 else "")
+        print(f"[update] Local changes detected ({preview}). Preserving them before update…")
+        # Never delete or reset user work. Stash tracked + untracked files, update the
+        # release, then restore them. This also handles generated lockfile noise.
+        stashed = run([git, "stash", "push", "--include-untracked", "-m",
+                       f"AI Brain auto-update backup before {latest_tag}"], timeout=120)
+        if stashed.returncode:
+            print("[update] Could not safely back up local changes; update skipped. Nothing was overwritten.")
+            return False
+        stash_created = "No local changes to save" not in stashed.stdout
+        if stash_created:
+            stash_ref = run([git, "rev-parse", "stash@{0}"]).stdout.strip() or None
+            print("[update] Local changes backed up safely.")
 
     before = run([git, "rev-parse", "HEAD"]).stdout.strip()
     fetched = run([git, "fetch", "--tags", "--force", "origin"], timeout=120)
     if fetched.returncode:
         print("[update] git fetch failed; continuing with installed version.")
+        if stash_created:
+            restored = run([git, "stash", "pop"], timeout=120)
+            if restored.returncode:
+                print("[update] Your local-change backup remains in git stash; it was not deleted.")
+            else:
+                print("[update] Local changes restored.")
         return False
     merged = run([git, "merge", "--ff-only", latest_tag], timeout=120)
     if merged.returncode:
-        print("[update] Release cannot be fast-forwarded safely; continuing without modifying files.")
+        print("[update] Release cannot be fast-forwarded safely; continuing without modifying release files.")
+        if stash_created:
+            restored = run([git, "stash", "pop"], timeout=120)
+            if restored.returncode:
+                print("[update] Your local-change backup remains in git stash; it was not deleted.")
         return False
 
     after = run([git, "rev-parse", "HEAD"]).stdout.strip()
+    if stash_created:
+        restored = run([git, "stash", "pop"], timeout=120)
+        if restored.returncode:
+            print("[update] Updated, but local changes overlap the new release.")
+            print("[update] Your backup is preserved in git stash; resolve the overlap manually.")
+        else:
+            print("[update] Local changes restored after the release update.")
     if before != after:
         print(f"[update] Updated successfully to {latest_tag}.")
         return True
