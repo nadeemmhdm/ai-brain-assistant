@@ -118,6 +118,7 @@ export const api = {
   brainSources: () => authFetch(`${BASE}/api/brain/sources`).then(j<any[]>),
   deleteKnowledge: (id: string) => authFetch(`${BASE}/api/brain/knowledge/${id}`, { method: "DELETE" }),
   brainSessions: () => authFetch(`${BASE}/api/brain/sessions`).then(j<any[]>),
+  deleteBrainSession: (id: string) => authFetch(`${BASE}/api/brain/sessions/${id}`, { method: "DELETE" }).then(jAuth),
 
   // auto learn
   startLearn: (topic: string) =>
