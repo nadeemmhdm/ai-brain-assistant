@@ -136,8 +136,8 @@ export function ChatComposer({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="bg-surface-2/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl flex flex-col transition-shadow focus-within:shadow-2xl focus-within:border-accent/40">
+    <div className="w-full max-w-3xl mx-auto px-1 sm:px-2">
+      <div className="chat-composer bg-surface/95 backdrop-blur-xl border border-border rounded-[22px] shadow-xl flex flex-col transition-all focus-within:border-accent/45">
         <input ref={fileRef} type="file" className="hidden" accept=".pdf,.txt,.md,.markdown,.csv,.json,.py,.js,.ts,.tsx,.jsx,.html,.css,.xml,.yaml,.yml,.log" onChange={async (e) => {
           const picked = e.target.files?.[0]; e.currentTarget.value = ""; if (!picked) return;
           setFileBusy(true); try { setFile(await api2.analyzeFile(picked)); toast.success(`${picked.name} ready to analyze`); }
@@ -156,10 +156,10 @@ export function ChatComposer({
           placeholder={placeholder || (skillName ? `${skillName}… (message ${aiName || "Nila"})` : streaming ? "Type ahead — it'll send once the reply is done…" : `Message ${aiName || "Nila"}…`)}
           rows={1}
           disabled={disabled}
-          className="flex-1 min-h-[56px] max-h-[160px] w-full p-4 resize-none bg-transparent text-ink placeholder:text-muted text-sm sm:text-base focus:outline-none custom-scrollbar disabled:opacity-60"
+          className="flex-1 min-h-[72px] max-h-[180px] w-full px-4 sm:px-5 pt-4 pb-3 resize-none bg-transparent text-ink placeholder:text-muted text-[15px] sm:text-base leading-relaxed focus:outline-none custom-scrollbar disabled:opacity-60"
         />
-        <div className="flex items-center gap-1.5 justify-between w-full px-3 pb-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5">
+        <div className="composer-toolbar border-t border-border/70 px-2.5 sm:px-3 py-2.5 flex items-center gap-2 justify-between">
+          <div className="composer-tools hide-scroll-bar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
             <Dropdown
               value={searchMode}
               options={SEARCH_MODES}
@@ -197,13 +197,13 @@ export function ChatComposer({
             />
             {onLiveVoice && (
               <motion.button whileTap={{scale:.88}} onClick={onLiveVoice} title={liveVoiceState && liveVoiceState !== "off" ? "Stop Live Voice" : "Start Live Voice"}
-                className={cn("h-9 px-2 rounded-md flex items-center gap-1 text-xs hover:bg-surface", liveVoiceState && liveVoiceState !== "off" ? "text-accent bg-accent/10" : "text-muted")}>
+                className={cn("h-9 px-2.5 rounded-xl flex items-center gap-1 text-xs hover:bg-surface-2", liveVoiceState && liveVoiceState !== "off" ? "text-accent bg-accent/10" : "text-muted")}>
                 <AudioLines className="h-[18px] w-[18px]"/>{liveVoiceState && liveVoiceState !== "off" ? liveVoiceState : "Live"}
               </motion.button>
             )}
             {onVoice && (
               <motion.button whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.08 }} onClick={onVoice} title={`Talk to ${aiName || "Nila"}`}
-                className="h-9 w-9 rounded-md flex items-center justify-center text-muted hover:text-accent hover:bg-surface">
+                className="h-9 w-9 rounded-xl flex items-center justify-center text-muted hover:text-accent hover:bg-surface-2">
                 <Mic className="h-[18px] w-[18px]" />
               </motion.button>
             )}

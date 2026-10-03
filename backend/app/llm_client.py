@@ -18,6 +18,10 @@ import httpx
 from typing import AsyncGenerator, Optional
 from .config import settings
 
+# Per-process capability memory: once a llama.cpp server rejects an optional
+# request field, do not keep sending it on every chat turn.
+_REASONING_FORMAT_SUPPORTED: dict[str, bool] = {}
+
 THINK_SYSTEM_SUFFIX = (
     "\n\nBefore answering, think step by step inside a single "
     "<thinking>...</thinking> block, KEEPING IT UNDER {budget} WORDS. "
@@ -85,8 +89,8 @@ async def stream_chat(
         "cache_prompt": True, "top_k": 40, "repeat_penalty": 1.1,
     }
     attempts = [dict(base_payload)]
-    if which == "main" and reasoning_level != "off":
-        # Newer llama.cpp understands this; older builds may reject it with HTTP 400.
+    use_reasoning_format = which == "main" and reasoning_level != "off" and _REASONING_FORMAT_SUPPORTED.get(url, True)
+    if use_reasoning_format:
         attempts[0]["reasoning_format"] = "none"
         attempts.append(dict(base_payload))
 
@@ -102,6 +106,7 @@ async def stream_chat(
                         last_error = f"Model server ({which}) returned {resp.status_code}: {body}"
                         # Compatibility retry: same selected model, just without optional flag.
                         if attempt_no + 1 < len(attempts) and resp.status_code in (400, 404, 422):
+                            _REASONING_FORMAT_SUPPORTED[url] = False
                             continue
                         yield f"__ERROR__:{last_error}"
                         return
@@ -125,6 +130,8 @@ async def stream_chat(
                         except (ValueError, TypeError, KeyError):
                             continue
                 if emitted:
+                    if "reasoning_format" in payload:
+                        _REASONING_FORMAT_SUPPORTED[url] = True
                     return
                 # Some reasoning templates emit only a reasoning channel. Do not expose
                 # scratchpad; retry the same model once in direct/off mode instead.
