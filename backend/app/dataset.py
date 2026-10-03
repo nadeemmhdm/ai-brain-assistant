@@ -18,7 +18,7 @@ def create_dataset(name: str, topic: str | None = None, only_verified: bool = Tr
             conditions.append("topic = ?")
             params.append(topic)
         if only_verified:
-            conditions.append("verification_status = 'verified'")
+            conditions.append("verification_status IN ('verified','teacher_verified')")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         rows = conn.execute(sql, params).fetchall()
