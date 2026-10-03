@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff, Clock, Paperclip, X, Loader2, AudioLines } from "lucide-react";
+import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff, Clock, Paperclip, X, Loader2, AudioLines, SlidersHorizontal } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { SkillPicker } from "./SkillPicker";
@@ -107,7 +107,7 @@ export function ChatComposer({
 }) {
   const [message, setMessage] = useState("");
   const [file, setFile] = useState<any>(null);
-  const [fileBusy, setFileBusy] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);\n  const [toolsOpen, setToolsOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -158,71 +158,31 @@ export function ChatComposer({
           disabled={disabled}
           className="flex-1 min-h-[72px] max-h-[180px] w-full px-4 sm:px-5 pt-4 pb-3 resize-none bg-transparent text-ink placeholder:text-muted text-[15px] sm:text-base leading-relaxed focus:outline-none custom-scrollbar disabled:opacity-60"
         />
-        <div className="composer-toolbar border-t border-border/70 px-2.5 sm:px-3 py-2.5 flex items-center gap-2 justify-between">
-          <div className="composer-tools hide-scroll-bar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-            <Dropdown
-              value={searchMode}
-              options={SEARCH_MODES}
-              onChange={setSearchMode}
-              renderLabel={(o) => (
-                <span className={cn("flex items-center gap-1.5", searchMode !== "off" && "text-accent")}>
-                  {searchMode === "deep" ? <Telescope className="h-3.5 w-3.5" /> : <Search className="h-3.5 w-3.5" />}{o.label}
-                </span>
-              )}
-              align="left"
-            />
-            <motion.button whileTap={{scale:.9}} onClick={() => fileRef.current?.click()} disabled={fileBusy} title="Upload a file to analyze"
-              className="h-8 w-8 rounded-lg flex items-center justify-center text-muted hover:text-accent hover:bg-surface disabled:opacity-50">
-              {fileBusy ? <Loader2 className="h-4 w-4 animate-spin"/> : <Paperclip className="h-4 w-4"/>}
-            </motion.button>
-            {onSkillChange && <SkillPicker skillId={skillId ?? null} onChange={onSkillChange} />}
-            {offline && (
-              <span className="flex items-center gap-1 text-[11px] text-amber-500" title="Offline: only saved knowledge is used">
-                <WifiOff className="h-3.5 w-3.5" /> Offline
-              </span>
-            )}
+        <div className="composer-toolbar border-t border-border/70 px-3 py-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            <motion.button whileTap={{scale:.9}} onClick={() => fileRef.current?.click()} disabled={fileBusy} title="Attach file" className="composer-icon-btn">{fileBusy?<Loader2 className="h-4 w-4 animate-spin"/>:<Paperclip className="h-4 w-4"/>}</motion.button>
+            <div className="relative">
+              <motion.button whileTap={{scale:.9}} onClick={()=>setToolsOpen(v=>!v)} className={cn("composer-tool-trigger",toolsOpen&&"bg-surface-2 text-ink")}><SlidersHorizontal className="h-4 w-4"/><span>Tools</span>{(searchMode!=="off"||reasoningLevel!=="off"||skillId)&&<span className="h-1.5 w-1.5 rounded-full bg-accent"/>}</motion.button>
+              {toolsOpen&&<motion.div initial={{opacity:0,y:6,scale:.98}} animate={{opacity:1,y:0,scale:1}} className="absolute bottom-full left-0 mb-2 w-[300px] rounded-2xl border border-border bg-surface p-2 shadow-2xl z-30">
+                <div className="px-2 py-1 text-[11px] uppercase tracking-wider text-muted">Chat tools</div>
+                <ToolRow label="Search"><Dropdown value={searchMode} options={SEARCH_MODES} onChange={setSearchMode} renderLabel={(o)=><>{o.label}</>}/></ToolRow>
+                <ToolRow label="Reasoning"><Dropdown value={reasoningLevel} options={REASONING_LEVELS} onChange={setReasoningLevel} renderLabel={(o)=><>{o.label}</>}/></ToolRow>
+                <ToolRow label="Model"><Dropdown value={model} options={MODELS} onChange={setModel} renderLabel={(o)=><>{o.label}</>}/></ToolRow>
+                {onSkillChange&&<div className="rounded-xl px-2 py-1 hover:bg-surface-2"><SkillPicker skillId={skillId??null} onChange={onSkillChange}/></div>}
+              </motion.div>}
+            </div>
+            {offline&&<span className="composer-state-chip"><WifiOff className="h-3.5 w-3.5"/></span>}
           </div>
-          <div className="flex items-center gap-1.5">
-            <Dropdown
-              value={reasoningLevel}
-              options={REASONING_LEVELS}
-              onChange={setReasoningLevel}
-              renderLabel={(o) => <>Reasoning: {o.label}</>}
-            />
-            <Dropdown
-              value={model}
-              options={MODELS}
-              onChange={setModel}
-              renderLabel={(o) => <>{o.label}</>}
-            />
-            {onLiveVoice && (
-              <motion.button whileTap={{scale:.88}} onClick={onLiveVoice} title={liveVoiceState && liveVoiceState !== "off" ? "Stop Live Voice" : "Start Live Voice"}
-                className={cn("h-9 px-2.5 rounded-xl flex items-center gap-1 text-xs hover:bg-surface-2", liveVoiceState && liveVoiceState !== "off" ? "text-accent bg-accent/10" : "text-muted")}>
-                <AudioLines className="h-[18px] w-[18px]"/>{liveVoiceState && liveVoiceState !== "off" ? liveVoiceState : "Live"}
-              </motion.button>
-            )}
-            {onVoice && (
-              <motion.button whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.08 }} onClick={onVoice} title={`Talk to ${aiName || "Nila"}`}
-                className="h-9 w-9 rounded-xl flex items-center justify-center text-muted hover:text-accent hover:bg-surface-2">
-                <Mic className="h-[18px] w-[18px]" />
-              </motion.button>
-            )}
-            {streaming && (
-              <Button size="icon" variant="destructive" onClick={onStop} title="Stop generating">
-                <Square className="h-4 w-4" />
-              </Button>
-            )}
-            <Button
-              size="icon"
-              onClick={send}
-              disabled={(!message.trim() && !file) || disabled || fileBusy || (streaming && queueFull)}
-              title={streaming ? (queueFull ? "Waiting list is full (5/5)" : "Add to waiting list") : "Send"}
-            >
-              {streaming ? <Clock className="h-4 w-4" /> : <ArrowUp className="h-4 w-4" />}
-            </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            {onLiveVoice&&<motion.button whileTap={{scale:.88}} onClick={onLiveVoice} title="Live Voice" className={cn("composer-icon-btn",liveVoiceState&&liveVoiceState!=="off"&&"text-accent bg-accent/10")}><AudioLines className="h-[18px] w-[18px]"/></motion.button>}
+            {onVoice&&<motion.button whileTap={{scale:.88}} onClick={onVoice} title={`Talk to ${aiName||"Nila"}`} className="composer-icon-btn"><Mic className="h-[18px] w-[18px]"/></motion.button>}
+            {streaming&&<Button size="icon" variant="destructive" onClick={onStop}><Square className="h-4 w-4"/></Button>}
+            <Button size="icon" className="rounded-xl" onClick={send} disabled={(!message.trim()&&!file)||disabled||fileBusy||(streaming&&queueFull)}>{streaming?<Clock className="h-4 w-4"/>:<ArrowUp className="h-4 w-4"/>}</Button>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+function ToolRow({label,children}:{label:string;children:React.ReactNode}){return <div className="flex items-center justify-between rounded-xl px-2 py-1 hover:bg-surface-2"><span className="text-xs text-muted">{label}</span>{children}</div>}
