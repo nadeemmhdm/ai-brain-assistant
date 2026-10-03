@@ -25,17 +25,17 @@ async def lesson(topic:str,question:str)->dict:
       {"role":"user","content":question}], "medium")).strip()
     review=await _cloud_json([
       {"role":"system","content":"You are a strict AI teacher. Return JSON only: {correct:boolean, feedback:string, corrected_answer:string}. Do not claim certainty when unsure."},
-      {"role":"user","content":f"Topic: {topic}\\nQuestion: {question}\\nLocal student's answer: {student}"}])
+      {"role":"user","content":f"Topic: {topic} | Question: {question} | Local student's answer: {student}"}])
     feedback=str(review.get("feedback",""))[:8000]
     corrected=str(review.get("corrected_answer",""))[:12000]
     retry=student
     if not bool(review.get("correct")):
         retry=(await llm_client.complete("main",[
           {"role":"system","content":"You are the local student. Learn from the teacher feedback for this turn. Produce a corrected answer; do not merely repeat the feedback."},
-          {"role":"user","content":f"Question: {question}\\nYour first answer: {student}\\nTeacher feedback: {feedback}\\nTeacher proposed correction: {corrected}"}],"medium")).strip()
+          {"role":"user","content":f"Question: {question} | Your first answer: {student} | Teacher feedback: {feedback} | Teacher proposed correction: {corrected}"}],"medium")).strip()
     final=await _cloud_json([
       {"role":"system","content":"Validate the student's revised answer. Return JSON only: {verified:boolean, feedback:string, canonical_answer:string}. Set verified=false if materially wrong, incomplete, or uncertain."},
-      {"role":"user","content":f"Topic: {topic}\\nQuestion: {question}\\nRevised local answer: {retry}"}])
+      {"role":"user","content":f"Topic: {topic} | Question: {question} | Revised local answer: {retry}"}])
     verified=bool(final.get("verified"))
     canonical=str(final.get("canonical_answer") or retry).strip()[:16000]
     kid=None
