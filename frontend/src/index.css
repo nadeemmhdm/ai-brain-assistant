@@ -78,3 +78,9 @@ body { background: var(--canvas); color: var(--ink); }
   .composer-toolbar{border-radius:0 0 18px 18px}
   .composer-tools{max-width:calc(100vw - 132px)}
 }
+
+.composer-icon-btn{height:36px;width:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:background .16s ease,color .16s ease}
+.composer-icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.composer-tool-trigger{height:36px;padding:0 10px;border-radius:12px;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:500;transition:background .16s ease,color .16s ease}
+.composer-tool-trigger:hover{background:var(--surface-2);color:var(--ink)}
+.composer-state-chip{height:30px;min-width:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#d99b45}
