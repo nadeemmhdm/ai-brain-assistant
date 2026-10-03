@@ -1,8 +1,8 @@
 """Interactive local-student/cloud-teacher learning loop."""
-import json, re, httpx
+import asyncio, json, re, httpx
 from . import cloud_training, llm_client, brain
 
-def _cloud_json(messages):
+def _cloud_json_sync(messages):
     _,cfg,key=cloud_training._active()
     url=cfg["base_url"].rstrip("/")+"/chat/completions"
     with httpx.Client(timeout=90,follow_redirects=False) as client:
@@ -12,13 +12,13 @@ def _cloud_json(messages):
     raw=r.json()["choices"][0]["message"]["content"].strip()
     m=re.search(r"\{.*\}",raw,re.S)
     if not m: raise RuntimeError("Teacher did not return structured JSON")
-    return json.loads(m.group(0))
+    parsed = json.loads(m.group(0))\n    if not isinstance(parsed, dict): raise RuntimeError("Teacher returned invalid structured JSON")\n    return parsed\n\nasync def _cloud_json(messages):\n    return await asyncio.to_thread(_cloud_json_sync, messages)
 
 async def lesson(topic:str,question:str)->dict:
     student=(await llm_client.complete("main",[
       {"role":"system","content":"You are the local student model. Answer accurately and concisely."},
       {"role":"user","content":question}], "medium")).strip()
-    review=_cloud_json([
+    review=await _cloud_json([
       {"role":"system","content":"You are a strict AI teacher. Return JSON only: {correct:boolean, feedback:string, corrected_answer:string}. Do not claim certainty when unsure."},
       {"role":"user","content":f"Topic: {topic}\nQuestion: {question}\nLocal student's answer: {student}"}])
     feedback=str(review.get("feedback",""))[:8000]
@@ -28,7 +28,7 @@ async def lesson(topic:str,question:str)->dict:
         retry=(await llm_client.complete("main",[
           {"role":"system","content":"You are the local student. Learn from the teacher feedback for this turn. Produce a corrected answer; do not merely repeat the feedback."},
           {"role":"user","content":f"Question: {question}\nYour first answer: {student}\nTeacher feedback: {feedback}\nTeacher proposed correction: {corrected}"}],"medium")).strip()
-    final=_cloud_json([
+    final=await _cloud_json([
       {"role":"system","content":"Validate the student's revised answer. Return JSON only: {verified:boolean, feedback:string, canonical_answer:string}. Set verified=false if materially wrong, incomplete, or uncertain."},
       {"role":"user","content":f"Topic: {topic}\nQuestion: {question}\nRevised local answer: {retry}"}])
     verified=bool(final.get("verified"))
@@ -50,7 +50,7 @@ def confidence_grade(percent:int)->str:
 async def curriculum(topic:str)->dict:
     """Topic-only autonomous curriculum. Cloud sees generated lesson material only."""
     topic=topic.strip()[:200]
-    plan=_cloud_json([
+    plan=await _cloud_json([
       {"role":"system","content":"Design a compact factual curriculum. Return JSON only: {summary:string, subtopics:[{name:string, questions:[string]}]}. Use 4-8 subtopics and 2-4 concrete questions each. Prioritize current knowledge where facts can change. Never request or infer user identity, chats, files, memories, credentials, or private data."},
       {"role":"user","content":f"Public learning topic: {topic}"}])
     subs=plan.get("subtopics") if isinstance(plan.get("subtopics"),list) else []
