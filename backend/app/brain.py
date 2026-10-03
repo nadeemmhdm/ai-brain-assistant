@@ -115,7 +115,7 @@ def search_knowledge(query: str, topic: Optional[str] = None, top_k: int = 5) ->
         query_tokens = set(_tokens(query))
         row_tokens = set(_tokens(f"{row['topic']} {row['subtopic'] or ''} {row['question']} {row['summary'] or ''}"))
         lexical = len(query_tokens & row_tokens) / len(query_tokens) if query_tokens else 0.0
-        verified_bonus = 0.035 if row["verification_status"] == "verified" else (-0.08 if row["verification_status"] == "conflict" else 0.0)
+        verified_bonus = 0.035 if row["verification_status"] in ("verified", "teacher_verified") else (-0.08 if row["verification_status"] == "conflict" else 0.0)
         score = 0.78 * semantic + 0.22 * lexical + verified_bonus
         scored.append((score, row))
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -137,7 +137,7 @@ def brain_stats() -> dict:
     with db.get_conn() as conn:
         topics = conn.execute("SELECT COUNT(DISTINCT topic) c FROM knowledge").fetchone()["c"]
         items = conn.execute("SELECT COUNT(*) c FROM knowledge").fetchone()["c"]
-        verified = conn.execute("SELECT COUNT(*) c FROM knowledge WHERE verification_status='verified'").fetchone()["c"]
+        verified = conn.execute("SELECT COUNT(*) c FROM knowledge WHERE verification_status IN ('verified','teacher_verified')").fetchone()["c"]
         conflicts = conn.execute("SELECT COUNT(*) c FROM knowledge WHERE verification_status='conflict'").fetchone()["c"]
         sources = conn.execute("SELECT COUNT(*) c FROM sources").fetchone()["c"]
         last_session = conn.execute("SELECT topic, finished_at FROM learning_sessions ORDER BY started_at DESC LIMIT 1").fetchone()
