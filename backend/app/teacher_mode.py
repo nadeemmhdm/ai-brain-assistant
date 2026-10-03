@@ -43,3 +43,32 @@ async def lesson(topic:str,question:str)->dict:
     return {"topic":topic,"question":question,"student_answer":student,"review":review,
             "student_retry":retry,"final_review":final,"verified":verified,"brain_id":kid,
             "provider":cloud_training.status()["active_provider"]}
+
+def confidence_grade(percent:int)->str:
+    return "A" if percent>=85 else "B" if percent>=70 else "C" if percent>=50 else "D"
+
+async def curriculum(topic:str)->dict:
+    """Topic-only autonomous curriculum. Cloud sees generated lesson material only."""
+    topic=topic.strip()[:200]
+    plan=_cloud_json([
+      {"role":"system","content":"Design a compact factual curriculum. Return JSON only: {summary:string, subtopics:[{name:string, questions:[string]}]}. Use 4-8 subtopics and 2-4 concrete questions each. Prioritize current knowledge where facts can change. Never request or infer user identity, chats, files, memories, credentials, or private data."},
+      {"role":"user","content":f"Public learning topic: {topic}"}])
+    subs=plan.get("subtopics") if isinstance(plan.get("subtopics"),list) else []
+    results=[]; saved=0; total=0
+    for sub in subs[:8]:
+        name=str(sub.get("name","")).strip()[:200]
+        qs=sub.get("questions") if isinstance(sub.get("questions"),list) else []
+        lessons=[]
+        for q in qs[:4]:
+            q=str(q).strip()[:4000]
+            if not q: continue
+            total+=1
+            r=await lesson(f"{topic} / {name}",q)
+            if r["verified"]: saved+=1
+            lessons.append(r)
+        if lessons: results.append({"name":name,"lessons":lessons})
+    pct=round(saved*100/total) if total else 0
+    return {"topic":topic,"summary":str(plan.get("summary",""))[:4000],"subtopics":results,
+            "verified":saved,"total":total,"confidence":{"percent":pct,"grade":confidence_grade(pct)},
+            "provider":cloud_training.status()["active_provider"],
+            "privacy":"Only generated topic curriculum and local lesson answers were sent to the configured API teacher."}
