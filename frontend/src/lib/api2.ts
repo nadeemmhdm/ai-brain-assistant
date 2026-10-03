@@ -102,7 +102,7 @@ export const api2 = {
 
   // autonomous Teacher Mode
   teacherStatus: () => authFetch(`${BASE}/api/teacher/status`).then(j<any>),
-  teacherCurriculum: (topic: string) => authFetch(`${BASE}/api/teacher/curriculum`, json("POST", { topic })).then(jAuth),,
+  teacherCurriculum: (topic: string) => authFetch(`${BASE}/api/teacher/curriculum`, json("POST", { topic })).then(jAuth),
   teacherCurriculumStream: async (topic: string, onEvent: (event:any)=>void, signal?:AbortSignal) => {
     const res=await authFetch(`${BASE}/api/teacher/curriculum/stream`,{...json("POST",{topic}),signal});
     if(!res.ok) return jAuth(res);
@@ -117,7 +117,7 @@ export const api2 = {
         if(line) onEvent(JSON.parse(line.slice(5).trim()));
       }
     }
-  }
+  },
 
   // privacy-scoped cloud training teachers
   cloudTrainingProviders: () => authFetch(`${BASE}/api/training/cloud/providers`).then(j<any>),
