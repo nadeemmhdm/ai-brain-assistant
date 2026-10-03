@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff, Clock, Paperclip, X, Loader2 } from "lucide-react";
+import { ArrowUp, Search, ChevronDown, Check, Square, Mic, Telescope, WifiOff, Clock, Paperclip, X, Loader2, AudioLines } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { SkillPicker } from "./SkillPicker";
@@ -80,7 +80,7 @@ function Dropdown<T extends string>({
 
 export function ChatComposer({
   onSend, disabled, streaming, onStop, queueFull,
-  model, setModel, reasoningLevel, setReasoningLevel, searchMode, setSearchMode, offline, onVoice, aiName,
+  model, setModel, reasoningLevel, setReasoningLevel, searchMode, setSearchMode, offline, onVoice, onLiveVoice, liveVoiceState, aiName,
   skillId, skillName, onSkillChange,
   placeholder,
 }: {
@@ -89,6 +89,8 @@ export function ChatComposer({
   onSkillChange?: (id: string | null, name: string | null) => void;
   offline?: boolean;
   onVoice?: () => void;
+  onLiveVoice?: () => void;
+  liveVoiceState?: "off"|"listening"|"thinking"|"speaking";
   aiName?: string;
   onSend: (text: string) => void;
   disabled?: boolean;
@@ -193,6 +195,12 @@ export function ChatComposer({
               onChange={setModel}
               renderLabel={(o) => <>{o.label}</>}
             />
+            {onLiveVoice && (
+              <motion.button whileTap={{scale:.88}} onClick={onLiveVoice} title={liveVoiceState && liveVoiceState !== "off" ? "Stop Live Voice" : "Start Live Voice"}
+                className={cn("h-9 px-2 rounded-md flex items-center gap-1 text-xs hover:bg-surface", liveVoiceState && liveVoiceState !== "off" ? "text-accent bg-accent/10" : "text-muted")}>
+                <AudioLines className="h-[18px] w-[18px]"/>{liveVoiceState && liveVoiceState !== "off" ? liveVoiceState : "Live"}
+              </motion.button>
+            )}
             {onVoice && (
               <motion.button whileTap={{ scale: 0.88 }} whileHover={{ scale: 1.08 }} onClick={onVoice} title={`Talk to ${aiName || "Nila"}`}
                 className="h-9 w-9 rounded-md flex items-center justify-center text-muted hover:text-accent hover:bg-surface">
