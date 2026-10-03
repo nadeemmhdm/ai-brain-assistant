@@ -2,6 +2,8 @@ import {useEffect,useRef,useState} from "react";
 import {GraduationCap,ArrowRight,CheckCircle2,AlertTriangle,Brain,Cloud,Bot,Square,Sparkles} from "lucide-react";
 import {motion,AnimatePresence} from "motion/react";
 import {api2} from "@/lib/api2";
+import {useAppStore} from "@/store/useAppStore";
+import {startTeacherSession,stopTeacherSession} from "@/lib/teacherSession";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -39,40 +41,25 @@ function Bubble({turn}:{turn:Turn}){
 
 export function TeacherView(){
  const [topic,setTopic]=useState(""); const [status,setStatus]=useState<any>(null);
- const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [plan,setPlan]=useState<any>(null);
- const [lessons,setLessons]=useState<Lesson[]>([]); const [summary,setSummary]=useState<any>(null);
- const abort=useRef<AbortController|null>(null); const bottom=useRef<HTMLDivElement>(null);
+ const session=useAppStore(s=>s.teacherSession);
+ const {busy,error,plan,lessons,summary}=session;
+ const bottom=useRef<HTMLDivElement>(null);
  useEffect(()=>{api2.teacherStatus().then(setStatus).catch(()=>{})},[]);
  useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth",block:"nearest"})},[lessons,busy]);
+ useEffect(()=>{if(session.topic&&!topic)setTopic(session.topic)},[session.topic]);
  const active=status?.providers?.find((p:any)=>p.provider===status?.active_provider);
 
- function updateLesson(id:string,fn:(l:Lesson)=>Lesson){setLessons(xs=>xs.map(l=>l.id===id?fn(l):l))}
- async function teach(){
-  if(!topic.trim()||busy)return; setBusy(true);setError("");setPlan(null);setLessons([]);setSummary(null);
-  const ac=new AbortController(); abort.current=ac;
-  try{
-   await api2.teacherCurriculumStream(topic.trim(),(e:any)=>{
-    if(e.type==="error"){setError(e.message||"Teacher session failed");return}
-    if(e.type==="plan"){setPlan(e);return}
-    if(e.type==="question"){setLessons(xs=>[...xs,{id:e.lesson_id,subtopic:e.subtopic,question:e.question,turns:[]}]);return}
-    if(e.type==="thinking"){updateLesson(e.lesson_id,l=>({...l,turns:[...l.turns.filter(t=>!t.thinking),{actor:e.actor,label:e.actor==="teacher"?"API Teacher":"Local AI",thinking:e.detail}]}));return}
-    if(e.type==="message"){updateLesson(e.lesson_id,l=>({...l,turns:[...l.turns.filter(t=>!t.thinking),{actor:e.actor,label:e.label,content:e.content}]}));return}
-    if(e.type==="lesson_done"){updateLesson(e.lesson_id,l=>({...l,verified:e.verified}));return}
-    if(e.type==="done"){setSummary(e);return}
-   },ac.signal);
-  }catch(e:any){if(e?.name!=="AbortError")setError(e.message||"Teacher session failed")}
-  finally{setBusy(false);abort.current=null}
- }
- function stop(){abort.current?.abort();setBusy(false)}
+ function teach(){if(!topic.trim()||busy)return;void startTeacherSession(topic)}
+ function stop(){stopTeacherSession()}
  const done=lessons.filter(l=>l.verified!==undefined).length;
  return <main className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-7">
   <div className="mx-auto max-w-5xl">
    <div className="mb-6 flex items-center gap-3"><div className="rounded-2xl bg-accent/10 p-3 text-accent"><GraduationCap/></div><div><h1 className="text-2xl font-semibold">Teacher Mode</h1><p className="text-sm text-muted">Watch your Local AI learn live from the API Teacher.</p></div></div>
    <section className="overflow-hidden rounded-3xl border border-border bg-surface shadow-sm">
     <div className="border-b border-border p-4 sm:p-5">
-     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted"><span className="flex items-center gap-2"><Cloud className="h-4 w-4"/>{active?<><b className="text-ink">{active.label}</b><span>· {active.model}</span></>:<>No API Teacher configured</>}</span>{busy&&<span className="flex items-center gap-2 text-accent"><Sparkles className="h-3.5 w-3.5 animate-pulse"/>Live lesson in progress</span>}</div>
+     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted"><span className="flex items-center gap-2"><Cloud className="h-4 w-4"/>{active?<><b className="text-ink">{active.label}</b><span>· {active.model}</span></>:<>No API Teacher configured</>}</span>{busy&&<span className="flex items-center gap-2 text-accent"><Sparkles className="h-3.5 w-3.5 animate-pulse"/>Learning in background · safe to leave this page</span>}</div>
      <div className="flex gap-2"><input value={topic} disabled={busy} onChange={e=>setTopic(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void teach()}} placeholder="What should your AI learn?" className="min-w-0 flex-1 rounded-xl border border-border bg-canvas px-4 py-3 outline-none focus:border-accent/50"/>
-      {busy?<button onClick={stop} className="flex items-center gap-2 rounded-xl border border-red-500/30 px-4 text-sm text-red-500"><Square className="h-4 w-4"/>Stop</button>:<button onClick={()=>void teach()} disabled={!active||!topic.trim()} className="flex items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white disabled:opacity-40">Teach<ArrowRight className="h-4 w-4"/></button>}</div>
+      {busy?<button onClick={stop} className="flex items-center gap-2 rounded-xl border border-red-500/30 px-4 text-sm text-red-500"><Square className="h-4 w-4"/>Stop</button>:<button onClick={teach} disabled={!active||!topic.trim()} className="flex items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white disabled:opacity-40">Teach<ArrowRight className="h-4 w-4"/></button>}</div>
      <p className="mt-2 text-[11px] text-muted">Only the topic, generated curriculum and lesson answers are sent to the configured API teacher. Chat history, files, memories and credentials are not automatically attached.</p>
     </div>
 
