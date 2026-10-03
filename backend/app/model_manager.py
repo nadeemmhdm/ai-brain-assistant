@@ -27,6 +27,36 @@ def _save_imports(d: dict):
     with db.get_conn() as conn:
         conn.execute("INSERT INTO kv_settings (key,value) VALUES ('imported_models',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (db.dumps(d),))
 
+def _role_key(role: str) -> str:
+    if role not in ("main", "agent"):
+        raise ValueError("role must be 'main' or 'agent'")
+    return f"model_assignment_{role}"
+
+def assignment(role: str) -> str | None:
+    key=_role_key(role)
+    with db.get_conn() as conn:
+        row=conn.execute("SELECT value FROM kv_settings WHERE key=?",(key,)).fetchone()
+    return row["value"] if row and row["value"] else None
+
+def assignments() -> dict:
+    return {"main": assignment("main"), "agent": assignment("agent")}
+
+def set_assignment(role: str, filename: str) -> dict:
+    _role_key(role)
+    if os.path.basename(filename) != filename or not filename.lower().endswith(".gguf"):
+        raise ValueError("Invalid model file name")
+    if not resolve(filename):
+        raise ValueError(f"{filename} is not available in your model library")
+    with db.get_conn() as conn:
+        conn.execute("INSERT INTO kv_settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                     (_role_key(role),filename))
+    return {"role":role,"filename":filename}
+
+def clear_assignment(role: str):
+    key=_role_key(role)
+    with db.get_conn() as conn:
+        conn.execute("DELETE FROM kv_settings WHERE key=?",(key,))
+
 def resolve(filename: str) -> str | None:
     """A model name -> its real path (models folder first, then imported-in-place)."""
     p = os.path.join(settings.models_dir, filename)
@@ -90,6 +120,7 @@ def load(role: str, filename: str) -> dict:
     path = resolve(filename)
     if not path:
         raise ValueError(f"{filename} was not found in {settings.models_dir} or your imported models")
+    set_assignment(role, filename)
     unload(role)
     port = _port(role)
     log = open(os.path.join(settings.data_dir, f"llama-{role}.log"), "ab")
