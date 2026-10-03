@@ -1,48 +1,78 @@
-import {useEffect,useState} from "react";
-import {GraduationCap,ArrowRight,CheckCircle2,AlertTriangle,Brain,Cloud,Bot,Sparkles} from "lucide-react";
+import {useEffect,useRef,useState} from "react";
+import {GraduationCap,ArrowRight,CheckCircle2,AlertTriangle,Brain,Cloud,Bot,Square,Sparkles} from "lucide-react";
+import {motion,AnimatePresence} from "motion/react";
 import {api2} from "@/lib/api2";
 
-function Bubble({side,label,children}:{side:"student"|"teacher";label:string;children:any}){
- const teacher=side==="teacher";
- return <div className={`flex ${teacher?"justify-start":"justify-end"}`}>
-  <div className={`max-w-[88%] rounded-2xl border px-4 py-3 ${teacher?"border-border bg-surface":"border-accent/20 bg-accent/10"}`}>
-   <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-muted">{teacher?<GraduationCap className="h-3 w-3"/>:<Bot className="h-3 w-3"/>}{label}</div>
-   <div className="whitespace-pre-wrap text-sm leading-6">{children||"—"}</div>
+type Turn={actor:"student"|"teacher";label:string;content?:string;thinking?:string};
+type Lesson={id:string;subtopic:string;question:string;turns:Turn[];verified?:boolean};
+
+function Dots(){return <span className="inline-flex items-center gap-1">{[0,1,2].map(i=><motion.span key={i} className="h-1.5 w-1.5 rounded-full bg-current" animate={{opacity:[.25,1,.25],y:[0,-2,0]}} transition={{duration:1,repeat:Infinity,delay:i*.16}}/>)}</span>}
+
+function Bubble({turn}:{turn:Turn}){
+ const teacher=turn.actor==="teacher";
+ return <motion.div initial={{opacity:0,y:10,scale:.98}} animate={{opacity:1,y:0,scale:1}} className={`flex gap-2.5 ${teacher?"justify-start":"justify-end"}`}>
+  {teacher&&<div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-accent shadow-sm"><GraduationCap className="h-4 w-4"/></div>}
+  <div className={`max-w-[82%] rounded-2xl px-4 py-3 shadow-sm ${teacher?"rounded-tl-md border border-border bg-surface":"rounded-tr-md bg-accent text-white"}`}>
+   <div className={`mb-1 text-[10px] font-semibold uppercase tracking-wider ${teacher?"text-muted":"text-white/70"}`}>{turn.label}</div>
+   {turn.thinking?<div className="flex min-w-36 items-center gap-2 text-sm"><Dots/><span className={teacher?"text-muted":"text-white/80"}>{turn.thinking}</span></div>:<div className="whitespace-pre-wrap text-sm leading-6">{turn.content||"—"}</div>}
   </div>
- </div>
+  {!teacher&&<div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent"><Bot className="h-4 w-4"/></div>}
+ </motion.div>
 }
 
 export function TeacherView(){
- const [topic,setTopic]=useState("");
- const [status,setStatus]=useState<any>(null); const [result,setResult]=useState<any>(null);
- const [busy,setBusy]=useState(false); const [error,setError]=useState("");
+ const [topic,setTopic]=useState(""); const [status,setStatus]=useState<any>(null);
+ const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [plan,setPlan]=useState<any>(null);
+ const [lessons,setLessons]=useState<Lesson[]>([]); const [summary,setSummary]=useState<any>(null);
+ const abort=useRef<AbortController|null>(null); const bottom=useRef<HTMLDivElement>(null);
  useEffect(()=>{api2.teacherStatus().then(setStatus).catch(()=>{})},[]);
- async function teach(){if(!topic.trim()||busy)return;setBusy(true);setError("");setResult(null);try{setResult(await api2.teacherCurriculum(topic.trim()))}catch(e:any){setError(e.message||"Teacher session failed")}finally{setBusy(false)}}
+ useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth",block:"nearest"})},[lessons,busy]);
  const active=status?.providers?.find((p:any)=>p.provider===status?.active_provider);
- return <main className="flex-1 overflow-y-auto p-5 sm:p-8">
-  <div className="mx-auto max-w-4xl">
-   <div className="mb-7 flex items-start gap-3"><div className="rounded-2xl bg-accent/10 p-3 text-accent"><GraduationCap/></div><div><h1 className="text-2xl font-semibold">Teacher Mode</h1><p className="mt-1 text-sm text-muted">Local AI learns by talking with your configured API teacher. Their lesson conversation is shown below and verified knowledge is saved to Brain.</p></div></div>
-   <section className="rounded-2xl border border-border bg-surface p-5">
-    <div className="mb-4 flex items-center gap-2 text-xs text-muted"><Cloud className="h-4 w-4"/>{active?<>Teacher: <b className="text-ink">{active.label} · {active.model}</b></>:<span>No active cloud teacher. Configure one in Training.</span>}</div>
-    <input value={topic} onChange={e=>setTopic(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void teach()}} placeholder="Enter a topic — e.g. Python, Cybersecurity, Physics" className="w-full rounded-xl border border-border bg-canvas px-4 py-3 outline-none focus:border-accent/50"/>
-    <button onClick={()=>void teach()} disabled={busy||!active||!topic.trim()} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">{busy?"Local AI and Teacher are learning…":"Start autonomous learning"}<ArrowRight className="h-4 w-4"/></button>
-    {busy&&<div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-canvas px-3 py-2 text-xs text-muted"><Sparkles className="h-4 w-4 animate-pulse text-accent"/>Building curriculum and running Local AI ↔ API Teacher validation conversations…</div>}
-    <p className="mt-3 text-[11px] text-muted">No chat history, memories, Brain dump, files, profile or credentials are automatically attached. The topic, generated curriculum and lesson answers are sent to the configured API teacher.</p>
-    {error&&<p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-500">{error}</p>}
+
+ function updateLesson(id:string,fn:(l:Lesson)=>Lesson){setLessons(xs=>xs.map(l=>l.id===id?fn(l):l))}
+ async function teach(){
+  if(!topic.trim()||busy)return; setBusy(true);setError("");setPlan(null);setLessons([]);setSummary(null);
+  const ac=new AbortController(); abort.current=ac;
+  try{
+   await api2.teacherCurriculumStream(topic.trim(),(e:any)=>{
+    if(e.type==="error"){setError(e.message||"Teacher session failed");return}
+    if(e.type==="plan"){setPlan(e);return}
+    if(e.type==="question"){setLessons(xs=>[...xs,{id:e.lesson_id,subtopic:e.subtopic,question:e.question,turns:[]}]);return}
+    if(e.type==="thinking"){updateLesson(e.lesson_id,l=>({...l,turns:[...l.turns.filter(t=>!t.thinking),{actor:e.actor,label:e.actor==="teacher"?"API Teacher":"Local AI",thinking:e.detail}]}));return}
+    if(e.type==="message"){updateLesson(e.lesson_id,l=>({...l,turns:[...l.turns.filter(t=>!t.thinking),{actor:e.actor,label:e.label,content:e.content}]}));return}
+    if(e.type==="lesson_done"){updateLesson(e.lesson_id,l=>({...l,verified:e.verified}));return}
+    if(e.type==="done"){setSummary(e);return}
+   },ac.signal);
+  }catch(e:any){if(e?.name!=="AbortError")setError(e.message||"Teacher session failed")}
+  finally{setBusy(false);abort.current=null}
+ }
+ function stop(){abort.current?.abort();setBusy(false)}
+ const done=lessons.filter(l=>l.verified!==undefined).length;
+ return <main className="flex-1 overflow-y-auto bg-canvas p-4 sm:p-7">
+  <div className="mx-auto max-w-5xl">
+   <div className="mb-6 flex items-center gap-3"><div className="rounded-2xl bg-accent/10 p-3 text-accent"><GraduationCap/></div><div><h1 className="text-2xl font-semibold">Teacher Mode</h1><p className="text-sm text-muted">Watch your Local AI learn live from the API Teacher.</p></div></div>
+   <section className="overflow-hidden rounded-3xl border border-border bg-surface shadow-sm">
+    <div className="border-b border-border p-4 sm:p-5">
+     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted"><span className="flex items-center gap-2"><Cloud className="h-4 w-4"/>{active?<><b className="text-ink">{active.label}</b><span>· {active.model}</span></>:<>No API Teacher configured</>}</span>{busy&&<span className="flex items-center gap-2 text-accent"><Sparkles className="h-3.5 w-3.5 animate-pulse"/>Live lesson in progress</span>}</div>
+     <div className="flex gap-2"><input value={topic} disabled={busy} onChange={e=>setTopic(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void teach()}} placeholder="What should your AI learn?" className="min-w-0 flex-1 rounded-xl border border-border bg-canvas px-4 py-3 outline-none focus:border-accent/50"/>
+      {busy?<button onClick={stop} className="flex items-center gap-2 rounded-xl border border-red-500/30 px-4 text-sm text-red-500"><Square className="h-4 w-4"/>Stop</button>:<button onClick={()=>void teach()} disabled={!active||!topic.trim()} className="flex items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium text-white disabled:opacity-40">Teach<ArrowRight className="h-4 w-4"/></button>}</div>
+     <p className="mt-2 text-[11px] text-muted">Only the topic, generated curriculum and lesson answers are sent to the configured API teacher. Chat history, files, memories and credentials are not automatically attached.</p>
+    </div>
+
+    <div className="min-h-[420px] bg-canvas/60 p-4 sm:p-6">
+     {!plan&&!busy&&!error&&<div className="flex min-h-[350px] flex-col items-center justify-center text-center text-muted"><div className="mb-3 rounded-2xl border border-border bg-surface p-4"><Bot className="h-7 w-7 text-accent"/></div><p className="font-medium text-ink">Local AI ↔ API Teacher</p><p className="mt-1 max-w-md text-sm">Enter a topic to start a visible learning conversation. Correct answers can be validated and saved to Brain.</p></div>}
+     {busy&&!plan&&<div className="flex min-h-52 items-center justify-center"><div className="rounded-2xl border border-border bg-surface px-5 py-4 text-sm text-muted shadow-sm"><div className="mb-2 flex items-center gap-2 text-ink"><GraduationCap className="h-4 w-4 text-accent"/><b>API Teacher</b></div><Dots/> <span className="ml-2">Building the curriculum…</span></div></div>}
+     {plan&&<div className="mb-5 rounded-2xl border border-border bg-surface p-4"><div className="flex items-center justify-between gap-3"><div><div className="text-xs font-medium uppercase tracking-wider text-accent">Curriculum</div><h2 className="mt-1 font-semibold">{plan.topic}</h2></div><span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-medium text-accent">{done}/{lessons.length || "…"} lessons</span></div><p className="mt-2 text-sm text-muted">{plan.summary}</p></div>}
+     <div className="space-y-5"><AnimatePresence>{lessons.map((lesson,i)=><motion.section key={lesson.id} initial={{opacity:0,y:14}} animate={{opacity:1,y:0}} className="rounded-2xl border border-border bg-canvas p-3 sm:p-4">
+      <div className="mb-4 flex items-start justify-between gap-3"><div><div className="text-[10px] font-medium uppercase tracking-wider text-muted">{lesson.subtopic} · Lesson {i+1}</div><h3 className="mt-1 text-sm font-semibold">{lesson.question}</h3></div>{lesson.verified!==undefined&&(lesson.verified?<span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-600"><CheckCircle2 className="h-3 w-3"/>Verified</span>:<span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600"><AlertTriangle className="h-3 w-3"/>Review</span>)}</div>
+      <div className="space-y-3">{lesson.turns.map((t,j)=><Bubble key={j} turn={t}/>)}</div>
+      {lesson.verified&&<div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted"><Brain className="h-3.5 w-3.5 text-accent"/>Verified knowledge saved to Brain</div>}
+     </motion.section>)}</AnimatePresence></div>
+     {summary&&<motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="mt-5 rounded-2xl border border-accent/20 bg-accent/5 p-4"><div className="flex items-center justify-between gap-3"><div><div className="text-xs font-medium text-accent">Learning complete</div><p className="mt-1 text-sm">{summary.verified} of {summary.total} lessons verified and saved.</p></div><b className="text-lg">{summary.confidence?.percent??0}% · {summary.confidence?.grade??"D"}</b></div></motion.div>}
+     {error&&<div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-500">{error}</div>}
+     <div ref={bottom}/>
+    </div>
    </section>
-   {result&&<section className="mt-5 space-y-4">
-    <div className="rounded-2xl border border-border bg-surface p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold">{result.topic}</h2><p className="mt-1 text-sm text-muted">{result.summary}</p></div><b className="text-sm">{result.confidence?.percent??0}% · {result.confidence?.grade??"D"}</b></div><p className="mt-3 text-xs text-muted">{result.verified??0} of {result.total??0} lessons verified and saved.</p></div>
-    {(result.subtopics||[]).map((sub:any,i:number)=><div key={i} className="rounded-2xl border border-border bg-canvas p-4"><h3 className="mb-4 font-medium">{sub.name}</h3><div className="space-y-5">{(sub.lessons||[]).map((lesson:any,j:number)=><div key={j} className="rounded-2xl border border-border bg-surface p-4">
-      <p className="mb-4 text-sm font-semibold">{lesson.question}</p>
-      <div className="space-y-3">
-       <Bubble side="student" label="Local AI">{lesson.student_answer}</Bubble>
-       <Bubble side="teacher" label="API Teacher">{lesson.review?.feedback}{lesson.review?.corrected_answer&&lesson.review?.corrected_answer!==lesson.student_answer?<>{"\n\n"}Correction: {lesson.review.corrected_answer}</>:null}</Bubble>
-       {lesson.student_retry!==lesson.student_answer&&<Bubble side="student" label="Local AI · retry">{lesson.student_retry}</Bubble>}
-       <Bubble side="teacher" label="API Teacher · final validation">{lesson.final_review?.feedback||lesson.final_review?.canonical_answer||"Validation completed."}</Bubble>
-      </div>
-      <p className="mt-4 flex items-center gap-1.5 text-xs text-muted">{lesson.verified?<CheckCircle2 className="h-4 w-4 text-emerald-500"/>:<AlertTriangle className="h-4 w-4 text-amber-500"/>}<Brain className="h-3.5 w-3.5"/>{lesson.verified?"Verified and saved to Brain":"Not saved — validation failed"}</p>
-     </div>)}</div></div>)}
-   </section>}
   </div>
  </main>
 }
