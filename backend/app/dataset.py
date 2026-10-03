@@ -18,11 +18,13 @@ def create_dataset(name: str, topic: str | None = None, only_verified: bool = Tr
             conditions.append("topic = ?")
             params.append(topic)
         if only_verified:
-            conditions.append("verification_status = 'verified'")
+            conditions.append("verification_status IN ('verified','teacher_verified')")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         rows = conn.execute(sql, params).fetchall()
 
+        if not rows:
+            return {"id": did, "name": name, "item_count": 0}
         conn.execute(
             "INSERT INTO datasets (id, name, topic, status, created_at) VALUES (?,?,?,?,?)",
             (did, name, topic, "draft", db.now()),

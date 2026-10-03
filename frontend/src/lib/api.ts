@@ -153,6 +153,7 @@ export const api = {
   deleteDataset: (id: string) => authFetch(`${BASE}/api/dataset/${id}`, { method: "DELETE" }),
 
   // training
+  trainingModels: () => authFetch(`${BASE}/api/training/models`).then(j<any[]>),
   startTraining: (body: any) =>
     authFetch(`${BASE}/api/training/start`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(jAuth),
   trainingStatus: (job_id: string) => authFetch(`${BASE}/api/training/status?job_id=${job_id}`).then(j<any>),
