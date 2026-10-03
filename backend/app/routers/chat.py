@@ -469,6 +469,14 @@ async def chat(body: ChatRequest):
         if mems:
             system += "\n\nThings the user asked you to remember:\n- " + "\n- ".join(mems)
         grounded = bool(blocks)
+        freshness_required = research.needs_fresh_web(user_text)
+        if freshness_required:
+            system += ("\n\nREAL-TIME FACT RULE: This question asks for current/recent information. "
+                       "Treat pretrained model knowledge and saved Brain knowledge as potentially stale. "
+                       "Use the freshly fetched web evidence above as the factual authority. Prefer the newest "
+                       "relevant primary/official source. Do not state a current office-holder, version, price, "
+                       "status, score, date-sensitive fact, or other changing fact unless supported by the fresh "
+                       "evidence. If fresh evidence is unavailable or conflicting, say that clearly instead of guessing.")
         if understanding.is_correction(user_text):
             system += ("\n\nCONTINUITY/CORRECTION RULE: The current user turn challenges or corrects an earlier assistant reply. "
                        "Read the recent user+assistant turns, identify the disputed claim, acknowledge a demonstrated mistake plainly, "
