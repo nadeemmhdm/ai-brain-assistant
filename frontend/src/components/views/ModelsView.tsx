@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Boxes, Play, Square, FolderInput, Search, Download, KeyRound, Mic, Volume2, Loader2, Trash2, X, Check, Languages } from "lucide-react";
+import { Boxes, Play, Square, FolderInput, Search, Download, KeyRound, Mic, Volume2, Loader2, Trash2, X, Check, Languages, Crown, Zap } from "lucide-react";
 import { api2 } from "@/lib/api2";
 import { toast } from "@/store/useToast";
 import { AnimatedIcon } from "@/components/ui/AnimatedIcon";
@@ -49,12 +49,15 @@ export function ModelsView() {
           <p className="text-xs text-muted mt-1">Models live in <code>{local.models_dir}</code>. The internet is only needed to download; everything runs locally afterwards.</p>
         </div>
 
-        <Card title="Your models">
+        <Card title="Your model library">
           {(["main", "agent"] as const).map((role) => (
             <div key={role} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className={`h-2 w-2 rounded-full ${online(role) ? "bg-emerald-500" : "bg-red-500"}`} />
               <div className="w-24 text-sm font-medium">{role === "main" ? "Main" : "Fast"} model</div>
-              <div className="flex-1 text-xs text-muted truncate">{local.running?.[role]?.filename || (online(role) ? "running (started outside this app)" : "not running")}</div>
+              <div className="flex-1 min-w-0">
+                <div className="truncate text-xs font-medium">{local.assigned?.[role] || "Not selected"}</div>
+                <div className="truncate text-[10px] text-muted">{local.running?.[role]?.filename ? "Running now" : online(role) ? "External model server online" : "Stopped"}</div>
+              </div>
               {local.running?.[role] && <button onClick={() => act(`un${role}`, () => api2.unloadModel(role), "Stopped")} className="text-xs flex items-center gap-1 text-red-400"><Square className="h-3 w-3" /> Stop</button>}
             </div>
           ))}
@@ -66,19 +69,22 @@ export function ModelsView() {
                   <div className="truncate font-medium">{m.filename}</div>
                   <div className="text-[11px] text-muted">{m.size_mb} MB{m.imported ? " · imported (in place)" : ""}</div>
                 </div>
-                {(["main", "agent"] as const).map((role) => (
-                  <button key={role} disabled={busy === m.filename + role} onClick={() => act(m.filename + role, () => api2.loadModel(role, m.filename), `Starting ${role} model…`)}
-                    className="text-xs h-7 px-2 rounded-md border border-border hover:border-accent hover:text-accent flex items-center gap-1">
-                    {busy === m.filename + role ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />} as {role === "main" ? "Main" : "Fast"}
+                {(["main", "agent"] as const).map((role) => {
+                  const selected=local.assigned?.[role]===m.filename;
+                  const key=m.filename+role;
+                  return <button key={role} disabled={busy===key} onClick={() => act(key,()=>api2.loadModel(role,m.filename),`${m.filename} set as ${role==="main"?"Main":"Fast"} and started`)}
+                    className={`text-xs h-8 px-2.5 rounded-md border flex items-center gap-1.5 transition-colors ${selected?"border-accent bg-accent/10 text-accent":"border-border hover:border-accent hover:text-accent"}`}>
+                    {busy===key?<Loader2 className="h-3 w-3 animate-spin"/>:role==="main"?<Crown className="h-3 w-3"/>:<Zap className="h-3 w-3"/>}
+                    {selected?(role==="main"?"Main selected":"Fast selected"):(role==="main"?"Set Main":"Set Fast")}
                   </button>
-                ))}
+                })}
                 {m.imported && <button title="Forget this import (file is not deleted)" onClick={() => act("rm" + m.filename, () => api2.removeImport(m.filename))} className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>}
               </div>
             ))}
           </div>
         </Card>
 
-        <Card title="Import a model you already downloaded">
+        <Card title="Add a model you already downloaded">
           <input ref={modelFile} type="file" accept=".gguf" className="hidden" onChange={async (e) => {
             const file = e.target.files?.[0]; e.currentTarget.value = ""; if (!file) return;
             await act("upload", async () => { await api2.uploadModel(file); load(); }, `${file.name} imported`);
@@ -88,7 +94,7 @@ export function ModelsView() {
               className="h-9 px-3 rounded-lg bg-accent text-white text-sm flex items-center gap-2 disabled:opacity-40">
               {busy === "upload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderInput className="h-4 w-4" />} {modelDownloadRunning ? "Available after download" : "Select GGUF file"}
             </motion.button>
-            <span className="text-[11px] text-muted self-center">Choose the downloaded model directly. No path typing required.</span>
+            <span className="text-[11px] text-muted self-center">Choose any GGUF model. After import, select it as Main or Fast from your model library above.</span>
           </div>
           <details className="text-xs text-muted">
             <summary className="cursor-pointer hover:text-ink mb-2">Advanced: import by local path</summary>
