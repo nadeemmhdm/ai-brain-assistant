@@ -121,6 +121,8 @@ export default function App() {
     setStreaming(true);
     abortRef.current = new AbortController();
     let accumulated = "";
+    let completedAssistantId: string | null = null;
+    let streamErrored = false;
     let assistantId = "pending-" + Date.now();
 
     // The user's own message must land in the list immediately -- otherwise, until the
@@ -159,16 +161,19 @@ export default function App() {
           onTitle: (title) => setConversations((prev) => prev.map((c) => (c.id === cid ? { ...c, title } : c))),
           onMemorySaved: (m) => toast.info(m.kind === "research" ? m.content : `Remembered: ${m.content}`),
           onDone: (d) => {
+            completedAssistantId = d.id;
+            accumulated = d.content || accumulated;
             updateMessage(cid, assistantId, {
-              id: d.id, content: d.content, thinking: d.thinking, sources: d.sources,
+              id: d.id, content: accumulated, thinking: d.thinking, sources: d.sources,
               confidence: d.confidence ?? null, action: d.action ?? null,
             });
             clearLive(assistantId);
           },
           onError: (message) => {
+            streamErrored = true;
             updateMessage(cid, assistantId, { content: accumulated || `⚠️ ${message}` });
             clearLive(assistantId);
-            toast.error(message.length > 80 ? "Something went wrong generating a reply" : message);
+            toast.error(accumulated ? "Reply interrupted — generated text was kept" : (message.length > 80 ? "Something went wrong generating a reply" : message));
           },
         },
         abortRef.current.signal,
@@ -185,7 +190,14 @@ export default function App() {
       // browser/proxy dropped the final SSE event after the backend saved the reply.
       try {
         const persisted = await api.getMessages(cid);
-        if (persisted.length) setMessages(cid, persisted);
+        const persistedHasReply = completedAssistantId
+          ? persisted.some((m) => m.id === completedAssistantId)
+          : persisted.some((m) => m.role === "assistant" && m.parent_id && m.content?.trim() === accumulated.trim());
+        // Never let a recovery re-sync erase visible text that arrived over SSE but was
+        // not committed because the model/backend stream ended unexpectedly.
+        if (persisted.length && (!accumulated.trim() || persistedHasReply || !streamErrored)) {
+          setMessages(cid, persisted);
+        }
       } catch {
         // Keep the streamed local state when the backend is temporarily unreachable.
       }

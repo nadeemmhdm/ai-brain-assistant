@@ -201,20 +201,16 @@ export async function streamChat(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawDone = false;
+  let sawError = false;
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop() || "";
-    for (const chunk of events) {
+  const dispatch = (chunk: string) => {
       const lines = chunk.split("\n");
       const eventLine = lines.find((l) => l.startsWith("event:"));
-      const dataLine = lines.find((l) => l.startsWith("data:"));
-      if (!eventLine || !dataLine) continue;
+      const dataLines = lines.filter((l) => l.startsWith("data:"));
+      if (!eventLine || !dataLines.length) return;
       const event = eventLine.slice(6).trim();
-      const data = JSON.parse(dataLine.slice(5).trim());
+      const data = JSON.parse(dataLines.map((l) => l.slice(5).trim()).join("\n"));
       switch (event) {
         case "user_message": handlers.onUserMessage?.(data); break;
         case "status": handlers.onStatus?.(data); break;
@@ -223,9 +219,26 @@ export async function streamChat(
         case "thinking_delta": handlers.onThinkingDelta?.(data.text); break;
         case "title": handlers.onTitle?.(data.title); break;
         case "memory_saved": handlers.onMemorySaved?.(data); break;
-        case "done": handlers.onDone?.(data); break;
-        case "error": handlers.onError?.(data.message); break;
+        case "done": sawDone = true; handlers.onDone?.(data); break;
+        case "error": sawError = true; handlers.onError?.(data.message); break;
       }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
+    for (const chunk of events) {
+      try { dispatch(chunk); } catch { /* malformed single SSE event must not destroy prior text */ }
     }
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    try { dispatch(buffer.trim()); } catch { /* keep already streamed text */ }
+  }
+  if (!sawDone && !sawError) {
+    handlers.onError?.("The reply stream ended before completion. Keeping any text already received.");
   }
 }
