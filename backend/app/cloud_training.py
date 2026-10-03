@@ -32,7 +32,7 @@ def status():
     rows=[_load_cfg(p) for p in PROVIDERS]
     active=next((x["provider"] for x in rows if x["active"]),None)
     return {"active_provider":active,"providers":rows,
-            "privacy":"Only explicitly approved dataset examples are sent. Chat, memory, Brain DB and local files are never attached."}
+            "privacy":"Cloud training sends only explicitly approved dataset examples. Teacher Mode sends the topic/curriculum and local lesson answers needed for validation. Chat history, memory, the Brain database and local files are not automatically attached."}
 
 def configure(provider, *, active=False, model="", base_url="", api_key=None):
     if provider not in PROVIDERS: raise ValueError("Unsupported training provider")
