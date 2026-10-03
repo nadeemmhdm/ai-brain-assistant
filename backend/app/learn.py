@@ -8,7 +8,7 @@ for final knowledge synthesis and conflict explanations.
 """
 import asyncio
 import json
-from . import db, search, brain, llm_client, research, scholarly, trusted_search
+from . import db, search, brain, llm_client, research, scholarly, trusted_search, cloud_training
 
 SESSIONS: dict[str, dict] = {}  # session_id -> live progress state (in-memory)
 TASKS: dict[str, asyncio.Task] = {}
@@ -18,7 +18,7 @@ def _new_state(topic: str) -> dict:
         "topic": topic, "status": "running", "current_task": "Planning topic...",
         "progress_pct": 0, "subtopics": [], "questions_total": 0, "questions_done": 0,
         "sources_found": 0, "pages_processed": 0, "knowledge_items": 0,
-        "verified_items": 0, "conflicts": 0, "rejected_items": 0, "learning_stage": 1, "entity_type": None, "research_scope": [], "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "control": "run",  # run|pause|cancel
+        "verified_items": 0, "conflicts": 0, "rejected_items": 0, "learning_stage": 1, "entity_type": None, "research_scope": [], "authoritative_sources": 0, "scholarly_sources": 0, "questions_without_evidence": 0, "synthesis_fallbacks": 0, "cloud_verifications": 0, "cloud_rejections": 0, "cloud_provider": None, "control": "run",  # run|pause|cancel
     }
 
 async def _agent_json_list(prompt: str, fallback: list[str]) -> list[str]:
@@ -232,6 +232,39 @@ async def run_auto_learn(session_id: str, topic: str):
             if "conflict" in synthesis.lower() or "disagree" in synthesis.lower():
                 verification = "conflict"
                 state["conflicts"] += 1
+
+            # Strict local corroboration gate comes first.
+            if verification == "verified":
+                # When a cloud API key/provider is configured, use it as a second,
+                # evidence-only verifier/editor. It receives this question and the
+                # collected source excerpts -- never ambient Brain, memory or chat.
+                try:
+                    cloud_status = cloud_training.status()
+                    if cloud_status.get("active_provider"):
+                        checked = await _interruptible(
+                            state,
+                            asyncio.to_thread(
+                                cloud_training.verify_research_knowledge,
+                                topic, sub, question, collected,
+                            ),
+                        )
+                        state["cloud_verifications"] += 1
+                        state["cloud_provider"] = checked.get("provider")
+                        if checked.get("verified") and checked.get("canonical_answer"):
+                            synthesis = checked["canonical_answer"]
+                        else:
+                            verification = "unverified"
+                            state["cloud_rejections"] += 1
+                except RuntimeError:
+                    # Active provider without a usable key is a configuration error:
+                    # never pretend cloud verification happened. Local corroboration
+                    # remains authoritative and the session can still learn safely.
+                    pass
+                except Exception:
+                    # Provider/network failure must not convert unverified cloud output
+                    # into Brain knowledge. Keep the independently corroborated local
+                    # synthesis instead and expose zero cloud_verifications for this item.
+                    pass
 
             # Strict learning gate: Brain is a trusted-memory store, not a research
             # scratchpad. Conflicting or weakly corroborated findings are discarded.
