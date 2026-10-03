@@ -68,3 +68,13 @@ body { background: var(--canvas); color: var(--ink); }
 .prose-chat{color:var(--ink);min-width:1px}.prose-chat>*{color:inherit}.prose-chat p{margin:.2rem 0 .65rem}.prose-chat p:last-child{margin-bottom:.15rem}.prose-chat pre{overflow:auto;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--canvas)}.prose-chat code{font-size:.9em}
 @media(max-width:640px){.message-surface{box-shadow:none}.welcome-state{min-height:52vh;display:flex;flex-direction:column;justify-content:center}.composer-dock{padding-left:8px;padding-right:8px}.message-actions{opacity:.72}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+.chat-composer{box-shadow:0 16px 44px rgba(0,0,0,.14);isolation:isolate}
+.chat-composer:focus-within{box-shadow:0 18px 50px rgba(0,0,0,.18),0 0 0 1px color-mix(in srgb,var(--accent) 14%,transparent)}
+.composer-toolbar{background:color-mix(in srgb,var(--surface) 92%,transparent);border-radius:0 0 22px 22px}
+.composer-tools>*,.composer-actions>*{flex-shrink:0}
+@media(max-width:720px){
+  .chat-composer{border-radius:18px}
+  .composer-toolbar{border-radius:0 0 18px 18px}
+  .composer-tools{max-width:calc(100vw - 132px)}
+}
