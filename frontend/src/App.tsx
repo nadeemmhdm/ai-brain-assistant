@@ -21,7 +21,7 @@ import { Sparkles, Brain, Search, GraduationCap } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { api, streamChat, getSessionToken, setUnauthorizedHandler, type Conversation, type Message } from "@/lib/api";
 import { api2 } from "@/lib/api2";
-import { resolveEngine, listen } from "@/lib/voice";
+import { resolveEngine, listen, liveConversation, stopSpeaking } from "@/lib/voice";
 
 export default function App() {
   const {
@@ -42,6 +42,8 @@ export default function App() {
   const [locked, setLocked] = useState<boolean | null>(null); // null = still checking
   const [offline, setOffline] = useState(!navigator.onLine);
   const [voiceListening, setVoiceListening] = useState(false);
+  const [liveVoiceState, setLiveVoiceState] = useState<"off"|"listening"|"thinking"|"speaking">("off");
+  const liveVoiceAbort = useRef<AbortController | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const skipAutoDequeueRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -194,6 +196,31 @@ export default function App() {
         if (next) send(next);
       }
     }
+  }
+
+  async function liveVoice() {
+    if (liveVoiceState !== "off") {
+      liveVoiceAbort.current?.abort(); stopSpeaking(); setLiveVoiceState("off"); return;
+    }
+    if (streaming) return toast.info("Finish the current reply before starting Live Voice.");
+    const ac = new AbortController(); liveVoiceAbort.current = ac;
+    try {
+      const { engine, note } = await resolveEngine("auto"); if (note) toast.info(note);
+      if (offline && engine !== "local") throw new Error("Offline Live Voice needs local STT + TTS in Models & Voice.");
+      await liveConversation({
+        engine, signal: ac.signal, onState:setLiveVoiceState,
+        onTranscript:(t)=>toast.info(`Heard: ${t.slice(0,80)}`),
+        onTurn: async (text) => {
+          const cid = await ensureConversation();
+          let answer = "";
+          await streamChat({conversation_id:cid,message:text,model,reasoning_level:reasoningLevel,search_mode:searchMode,offline:offlineMode,tz_offset_min:new Date().getTimezoneOffset(),voice:true},
+            {onDelta:(d)=>{answer+=d},onError:(m)=>{throw new Error(m)}}, ac.signal);
+          const persisted=await api.getMessages(cid).catch(()=>[]); if(persisted.length) setMessages(cid,persisted);
+          return answer;
+        }
+      });
+    } catch(e:any) { if(e?.name!=="AbortError") toast.error(e?.message||"Live Voice failed"); }
+    finally { if(liveVoiceAbort.current===ac) liveVoiceAbort.current=null; setLiveVoiceState("off"); }
   }
 
   async function voiceInput() {
@@ -388,6 +415,8 @@ export default function App() {
             searchMode={searchMode} setSearchMode={setSearchMode}
             offline={offlineMode}
             onVoice={voiceInput}
+            onLiveVoice={liveVoice}
+            liveVoiceState={liveVoiceState}
             aiName={voiceListening ? `${aiName} · listening` : aiName}
             skillId={skillId}
             skillName={skillName}
