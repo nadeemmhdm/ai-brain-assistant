@@ -9,17 +9,11 @@ valid session token.
 
 No extra dependencies: passwords are hashed with PBKDF2-HMAC-SHA256
 (stdlib `hashlib`), sessions are opaque random tokens (stdlib `secrets`)
-held in memory and expire after SESSION_TTL_SECONDS or on backend restart.
-"""
-import hashlib
-import hmac
-import os
-import secrets
-import time
-from fastapi import Header, HTTPException
-from . import db
-
-SESSION_TTL_SECONDS = 60 * 60 * 4\nMIN_PASSPHRASE_LENGTH = 10\nMAX_FAILED_LOGINS = 8\nLOGIN_WINDOW_SECONDS = 60\n_FAILED_LOGINS: list[float] = []  # 4 hours; local app-lock sessions are intentionally short-lived
+held in memory and expire after SESSION_TTL_SECONDS = 60 * 60 * 4
+MIN_PASSPHRASE_LENGTH = 10
+MAX_FAILED_LOGINS = 8
+LOGIN_WINDOW_SECONDS = 60
+_FAILED_LOGINS: list[float] = []
 _SESSIONS: dict[str, float] = {}  # token -> expires_at
 
 def _hash_password(password: str, salt: bytes | None = None) -> str:
@@ -48,8 +42,8 @@ def is_configured() -> bool:
 def setup_password(password: str):
     if is_configured():
         raise HTTPException(400, "A passphrase is already set. Use change_password instead.")
-    if len(password) < 4:
-        raise HTTPException(400, "Passphrase must be at least 4 characters.")
+    if len(password) < MIN_PASSPHRASE_LENGTH:
+        raise HTTPException(400, f"Passphrase must be at least {MIN_PASSPHRASE_LENGTH} characters.")
     with db.get_conn() as conn:
         conn.execute(
             "INSERT INTO kv_settings (key, value) VALUES ('auth_password_hash', ?) "
@@ -61,8 +55,8 @@ def change_password(current: str, new: str):
     stored = _get_hash()
     if not stored or not _verify_password(current, stored):
         raise HTTPException(401, "Current passphrase is incorrect.")
-    if len(new) < 4:
-        raise HTTPException(400, "New passphrase must be at least 4 characters.")
+    if len(new) < MIN_PASSPHRASE_LENGTH:
+        raise HTTPException(400, f"New passphrase must be at least {MIN_PASSPHRASE_LENGTH} characters.")
     with db.get_conn() as conn:
         conn.execute(
             "UPDATE kv_settings SET value=? WHERE key='auth_password_hash'",
