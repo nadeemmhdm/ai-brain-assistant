@@ -469,6 +469,15 @@ async def chat(body: ChatRequest):
         if mems:
             system += "\n\nThings the user asked you to remember:\n- " + "\n- ".join(mems)
         grounded = bool(blocks)
+        if understanding.is_correction(user_text):
+            system += ("\n\nCONTINUITY/CORRECTION RULE: The current user turn challenges or corrects an earlier assistant reply. "
+                       "Read the recent user+assistant turns, identify the disputed claim, acknowledge a demonstrated mistake plainly, "
+                       "and use the correction for the rest of this conversation when consistent with verified evidence. If it conflicts "
+                       "with verified evidence, explain the conflict instead of blindly accepting either side.")
+        else:
+            system += ("\n\nCONVERSATION CONTINUITY RULE: Treat recent user and assistant messages as one continuous dialogue. "
+                       "Resolve this/that/it/they and short follow-ups against immediately preceding turns. Do not treat a follow-up "
+                       "as an unrelated new question.")
         system += "\n\nAccuracy rules: First identify exactly what the user is asking. Preserve names, numbers, negations and constraints. Do not silently assume missing facts. For factual claims, prefer supplied verified context over model memory. If evidence conflicts, say so. If the request is genuinely ambiguous and different interpretations would materially change the answer, ask one concise clarification question instead of guessing. Before finalizing, check that every part of the user's request was addressed and that you did not invent specifics. "
         if understood_query != understanding.normalize(user_text):
             system += f"\nRetrieval interpretation (helper only; the original user message remains authoritative): {understood_query}"
