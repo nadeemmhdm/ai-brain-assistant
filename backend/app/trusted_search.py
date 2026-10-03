@@ -34,9 +34,9 @@ def lexical_score(query: str, text: str) -> float:
     t = set(re.findall(r"[a-z0-9]{2,}", text.lower()))
     return len(q & t) / len(q)
 
-def discover(query: str, max_results: int = 10) -> list[dict]:
+def discover(query: str, max_results: int = 10, use_cache: bool = True) -> list[dict]:
     """Return deduplicated candidates, authority-first, without trusting snippets as facts."""
-    raw = search.search(query, "duckduckgo", max_results=max_results, use_cache=True)
+    raw = search.search(query, "duckduckgo", max_results=max_results, use_cache=use_cache)
     out, seen = [], set()
     for r in raw:
         url = r.get("url") or ""
@@ -52,7 +52,7 @@ def discover(query: str, max_results: int = 10) -> list[dict]:
 
 def collect(query: str, max_results: int = 10, max_pages: int = 6) -> list[dict]:
     """Fetch original pages. A search result ranking alone never makes a source trusted."""
-    candidates = discover(query, max_results)
+    candidates = discover(query, max_results, use_cache=True)
     pages, domains = [], set()
     # First pass favors independent domains, then fills remaining slots.
     ordered = sorted(candidates, key=lambda x: x["authority_score"], reverse=True)
