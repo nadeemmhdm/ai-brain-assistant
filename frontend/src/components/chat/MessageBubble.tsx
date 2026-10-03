@@ -179,4 +179,7 @@ function IconBtn({ children, onClick, title }: { children: React.ReactNode; onCl
     </motion.button>
   );
 }
-\nfunction confidenceGrade(p:number){return p>=85?"A":p>=70?"B":p>=50?"C":"D"}\n
+
+function confidenceGrade(p: number) {
+  return p >= 85 ? "A" : p >= 70 ? "B" : p >= 50 ? "C" : "D";
+}
