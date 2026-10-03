@@ -158,13 +158,16 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         await emit("offline", "Offline mode — using only what's saved locally")
         return {"blocks": [], "sources": [], "from_memory": False, "save": None}
 
-    queries = await _plan_queries(question, cfg["queries"]) if mode == "deep" else [question]
+    fresh = needs_fresh_web(question)
+    current_year = datetime.now().year
+    base_query = f"{question} {current_year}" if fresh and str(current_year) not in question else question
+    queries = await _plan_queries(base_query, cfg["queries"]) if mode == "deep" else [base_query]
     await emit("searching", f"Searching the web ({len(queries)} quer{'y' if len(queries)==1 else 'ies'})…")
 
     results, seen, search_errors = [], set(), []
     for q in queries:
         try:
-            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2):
+            for r in await asyncio.to_thread(trusted_search.discover, q, cfg["pages"] * 2, not fresh):
                 url = r.get("url")
                 if url and url not in seen:
                     seen.add(url); results.append(r)
