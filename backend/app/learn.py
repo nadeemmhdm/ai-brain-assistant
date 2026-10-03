@@ -11,6 +11,7 @@ import json
 from . import db, search, brain, llm_client, research, scholarly, trusted_search
 
 SESSIONS: dict[str, dict] = {}  # session_id -> live progress state (in-memory)
+TASKS: dict[str, asyncio.Task] = {}
 
 def _new_state(topic: str) -> dict:
     return {
@@ -68,6 +69,32 @@ def _question_fallback(topic: str, area: str) -> list[str]:
         f"What primary or authoritative sources document {area} of {topic}?",
     ]
 
+
+async def _checkpoint(state: dict):
+    if state["control"] == "cancel":
+        raise asyncio.CancelledError()
+    while state["control"] == "pause":
+        state["status"] = "paused"
+        await asyncio.sleep(0.15)
+        if state["control"] == "cancel":
+            raise asyncio.CancelledError()
+    if state["status"] == "paused":
+        state["status"] = "running"
+
+async def _interruptible(state: dict, awaitable):
+    task = asyncio.create_task(awaitable)
+    try:
+        while not task.done():
+            await _checkpoint(state)
+            try:
+                return await asyncio.wait_for(asyncio.shield(task), timeout=0.20)
+            except asyncio.TimeoutError:
+                pass
+        return await task
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+
 async def run_auto_learn(session_id: str, topic: str):
     state = SESSIONS[session_id]
     sid_db = db.new_id()
@@ -91,8 +118,7 @@ async def run_auto_learn(session_id: str, topic: str):
         for sub in subtopics:
             if state["control"] == "cancel":
                 raise asyncio.CancelledError()
-            while state["control"] == "pause":
-                await asyncio.sleep(0.5)
+            await _checkpoint(state)
             qs = await _agent_json_list(
                 f"Create 2-4 factual questions needed to learn the research area '{sub}' about '{topic}'. "
                 "Questions must preserve the exact subject name, avoid speculation, and cover concrete facts that can be verified from sources.",
@@ -108,8 +134,7 @@ async def run_auto_learn(session_id: str, topic: str):
         for sub, question in all_questions:
             if state["control"] == "cancel":
                 raise asyncio.CancelledError()
-            while state["control"] == "pause":
-                await asyncio.sleep(0.5)
+            await _checkpoint(state)
 
             state["current_task"] = f"Stage {state['learning_stage']} · verifying: {question}"
             grounded_question = question
@@ -118,10 +143,10 @@ async def run_auto_learn(session_id: str, topic: str):
                 grounded_question = f"{question} Previously verified facts about {topic}: {learned}"
             # Discover and independently fetch original authoritative pages. Search ranking
             # is discovery only; it is never treated as truth by itself.
-            trusted_pages = await asyncio.to_thread(trusted_search.collect, grounded_question, search_top_n() * 2, min(6, search_top_n()))
+            trusted_pages = await _interruptible(state, asyncio.to_thread(trusted_search.collect, grounded_question, search_top_n() * 2, min(6, search_top_n())))
             results = [{"url": p["url"], "title": p.get("title"), "trust_tier": p["trust_tier"],
                         "source_type": p["source_type"], "_trusted_page": p} for p in trusted_pages]
-            academic = await asyncio.to_thread(scholarly.discover, grounded_question, 4)
+            academic = await _interruptible(state, asyncio.to_thread(scholarly.discover, grounded_question, 4))
             # Scholarly APIs complement normal web discovery. Prefer authoritative
             # evidence, but preserve independent domains for corroboration.
             known = {r.get("url") for r in results}
@@ -137,7 +162,8 @@ async def run_auto_learn(session_id: str, topic: str):
             for r in results:
                 if not r.get("url"):
                     continue
-                page = r.get("_trusted_page") or await asyncio.to_thread(search.fetch_and_extract, r["url"])
+                await _checkpoint(state)
+                page = r.get("_trusted_page") or await _interruptible(state, asyncio.to_thread(search.fetch_and_extract, r["url"]))
                 if not page and r.get("snippet"):
                     # Structured scholarly APIs often expose an abstract while the
                     # publisher page itself is paywalled. Store the API evidence
@@ -166,7 +192,7 @@ async def run_auto_learn(session_id: str, topic: str):
                 f"[Source {i+1} | trust {c['trust_tier']} | {c['url']}]\n{c['text'][:1500]}"
                 for i, c in enumerate(collected[:4])
             )
-            synthesis = await llm_client.complete(
+            synthesis = await _interruptible(state, llm_client.complete(
                 "main",
                 [{"role": "system", "content": (
                     "You are synthesizing research from multiple untrusted web sources into one "
@@ -181,7 +207,7 @@ async def run_auto_learn(session_id: str, topic: str):
                  {"role": "user", "content": f"Question: {question}\n\nSources:\n{context}\n\n"
                                              f"Give a concise answer (3-6 sentences), and note any factual conflict between sources."}],
                 reasoning_level="medium",
-            )
+            ))
             if not synthesis.strip():
                 # Research succeeded but the local synthesis model may be offline or may
                 # return an empty completion. Keep useful, provenance-backed evidence
@@ -256,7 +282,7 @@ def start_session(topic: str) -> str:
     """Must be called from inside the running event loop (async endpoint / scheduler)."""
     session_id = db.new_id()
     SESSIONS[session_id] = _new_state(topic)
-    asyncio.get_running_loop().create_task(run_auto_learn(session_id, topic))
+    TASKS[session_id] = asyncio.get_running_loop().create_task(run_auto_learn(session_id, topic))
     return session_id
 
 def any_running() -> bool:
