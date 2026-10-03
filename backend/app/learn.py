@@ -273,10 +273,15 @@ async def run_auto_learn(session_id: str, topic: str):
         state["current_task"] = f"Error: {e}"
     finally:
         with db.get_conn() as conn:
-            conn.execute(
-                "UPDATE learning_sessions SET status=?, stats_json=?, finished_at=? WHERE id=?",
-                (state["status"], db.dumps(state), db.now(), sid_db),
-            )
+            # Keep history only for useful learning runs. Errors and runs that
+            # produced zero Brain items are automatically removed.
+            if state["status"] in ("error", "failed") or int(state.get("knowledge_items") or 0) <= 0:
+                conn.execute("DELETE FROM learning_sessions WHERE id=?", (sid_db,))
+            else:
+                conn.execute(
+                    "UPDATE learning_sessions SET status=?, stats_json=?, finished_at=? WHERE id=?",
+                    (state["status"], db.dumps(state), db.now(), sid_db),
+                )
 
 def search_top_n() -> int:
     from .config import settings
