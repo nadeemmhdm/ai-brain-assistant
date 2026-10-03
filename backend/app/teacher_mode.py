@@ -4,7 +4,7 @@ from . import cloud_training, llm_client, brain
 
 def _cloud_json_sync(messages):
     _,cfg,key=cloud_training._active()
-    url=cfg["base_url"].rstrip("/")+"/chat/completions"
+    url=cloud_training.chat_completions_url(cfg)
     with httpx.Client(timeout=90,follow_redirects=False) as client:
         r=client.post(url,headers={"Authorization":f"Bearer {key}","Content-Type":"application/json"},
           json={"model":cfg["model"],"messages":messages,"temperature":0.1})
