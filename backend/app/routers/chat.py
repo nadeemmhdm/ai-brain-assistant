@@ -427,6 +427,22 @@ async def chat(body: ChatRequest):
                 yield ev
             return
 
+        # ---- local profile learning + explicit memory ----
+        # Both Main and Fast consume this same local profile/Brain pipeline.
+        # Only narrow, explicitly user-stated, non-sensitive profile facts are
+        # learned automatically; no model is asked to infer private traits.
+        profile_fact = memory.extract_profile_fact(user_text) if not body.regenerate_of else None
+        if profile_fact:
+            kind, value = profile_fact
+            memory.upsert_profile_fact(kind, value)
+            if kind == "name":
+                # Keep the existing user_name setting in sync with a directly stated name.
+                with db.get_conn() as conn:
+                    conn.execute(
+                        "INSERT INTO kv_settings (key,value) VALUES ('user_name',?) "
+                        "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (value,)
+                    )
+
         # ---- explicit "remember that ..." ----
         remembered = memory.extract_explicit(user_text) if not body.regenerate_of else None
         if remembered:
@@ -493,7 +509,17 @@ async def chat(body: ChatRequest):
             system += "\n\n" + logic_hint
         mems = memory.relevant(understood_query)
         if mems:
-            system += "\n\nThings the user asked you to remember:\n- " + "\n- ".join(mems)
+            system += "\n\nRelevant local memory:\n- " + "\n- ".join(
+                m for m in mems if not m.startswith("user_profile:")
+            )
+        profile = memory.profile_context(understood_query)
+        if profile:
+            system += (
+                "\n\nRelevant user profile (locally stored from facts the user directly stated):\n- "
+                + "\n- ".join(profile)
+                + "\nUse these facts only when they genuinely help answer the current request. "
+                  "Do not recite the profile, mention that it was stored, or force personalization into unrelated replies."
+            )
         grounded = bool(blocks)
         freshness_required = research.needs_fresh_web(user_text)
         if freshness_required:
