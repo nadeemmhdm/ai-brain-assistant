@@ -5,6 +5,11 @@ const ls = (k: string, d: string) => localStorage.getItem(k) ?? d;
 
 export interface StageInfo { stage: string; detail?: string; done?: number; total?: number }
 export interface LiveState { stages: StageInfo[]; thinking: string; startedAt: number }
+export type TeacherTurn={actor:"student"|"teacher";label:string;content?:string;thinking?:string};
+export type TeacherLesson={id:string;subtopic:string;question:string;turns:TeacherTurn[];verified?:boolean};
+export interface TeacherSession {
+  topic:string; busy:boolean; error:string; plan:any|null; lessons:TeacherLesson[]; summary:any|null; startedAt:number|null;
+}
 
 interface AppState {
   theme: "dark" | "light" | "system";
@@ -48,6 +53,10 @@ interface AppState {
 
   streaming: boolean;
   setStreaming: (b: boolean) => void;
+
+  teacherSession: TeacherSession;
+  patchTeacherSession: (patch: Partial<TeacherSession>) => void;
+  updateTeacherLesson: (id:string, fn:(lesson:TeacherLesson)=>TeacherLesson) => void;
 
   messageQueue: string[];              // waiting list -- messages typed while a reply is still generating
   enqueueMessage: (text: string) => boolean;   // false if the queue is already full (max 5)
@@ -105,6 +114,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   streaming: false,
   setStreaming: (b) => set({ streaming: b }),
+
+  teacherSession: {topic:"",busy:false,error:"",plan:null,lessons:[],summary:null,startedAt:null},
+  patchTeacherSession: (patch) => set((s)=>({teacherSession:{...s.teacherSession,...patch}})),
+  updateTeacherLesson: (id,fn) => set((s)=>({teacherSession:{...s.teacherSession,lessons:s.teacherSession.lessons.map(l=>l.id===id?fn(l):l)}})),
 
   messageQueue: [],
   enqueueMessage: (text) => {
