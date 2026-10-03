@@ -513,10 +513,14 @@ async def chat(body: ChatRequest):
         splitter = llm_client.ThinkSplitter() if uses_tagged_thinking else None
         thinking, answer = "", ""
         started_answer = False
+        generation_warning = None
         async for delta in llm_client.stream_chat(model, messages, level, temperature=0.2 if grounded else 0.45, max_tokens=max_tokens):
             if delta.startswith("__ERROR__:"):
-                yield _sse("error", {"message": delta[len("__ERROR__:"):]})
-                return
+                generation_warning = delta[len("__ERROR__:"):].strip()
+                # Never discard text the selected model already generated. If visible
+                # content exists, persist it below and surface the transport/model issue
+                # only as a warning. With no content, the normal same-model recovery runs.
+                break
             for kind, text in (splitter.feed(delta) if splitter else [("answer", delta)]):
                 if kind == "thinking":
                     thinking += text
@@ -553,6 +557,8 @@ async def chat(body: ChatRequest):
                 # Leave answer empty so the same-model visible-answer recovery below runs.
                 answer = ""
         answer = answer.strip()
+        if generation_warning and answer:
+            yield _sse("status", {"stage": "notice", "detail": "The model connection ended early; keeping the reply already generated."})
         if not answer:
             # Keep the selected model. Never silently replace Main with Fast.
             # Some GGUF/chat templates finish a reasoning run with no visible content,
@@ -563,7 +569,8 @@ async def chat(body: ChatRequest):
             if answer:
                 yield _sse("delta", {"text": answer})
             else:
-                yield _sse("error", {"message": "The selected Main model returned no visible text twice. Reload it in Models & Voice and retry."})
+                detail = generation_warning or "The selected model returned no visible text twice. Reload it in Models & Voice and retry."
+                yield _sse("error", {"message": detail})
                 return
 
         # drop citation numbers that don't exist
