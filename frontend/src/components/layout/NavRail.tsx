@@ -1,14 +1,14 @@
 import { motion } from "motion/react";
-import { MessageSquare, Database, Cpu, Settings, Boxes, Mail, Plug } from "lucide-react";
+import { MessageSquare, Database, Cpu, Settings, Boxes, Mail, Plug, GraduationCap } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { AnimatedIcon } from "@/components/ui/AnimatedIcon";
 
-export type View = "chat" | "brain" | "training" | "models" | "google" | "mcp";
+export type View = "chat" | "brain" | "training" | "teacher" | "models" | "google" | "mcp";
 const ITEMS: { id: View; icon: any; label: string }[] = [
   { id: "chat", icon: MessageSquare, label: "Chat" },
   { id: "brain", icon: Database, label: "AI Brain" },
   { id: "models", icon: Boxes, label: "Models" },
-  { id: "training", icon: Cpu, label: "Training" },
+  { id: "training", icon: Cpu, label: "Training" },\n  { id: "teacher", icon: GraduationCap, label: "Teacher" },
   { id: "google", icon: Mail, label: "Google" },
   { id: "mcp", icon: Plug, label: "MCP" },
 ];
