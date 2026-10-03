@@ -19,7 +19,18 @@ from urllib.parse import urlparse
 from . import db, brain, search, llm_client, trusted_search
 from .search import SearchError
 
-FRESHNESS_WORDS = re.compile(r"\b(today|tonight|latest|current(ly)?|now|news|price|score|weather|this (week|month|year)|20\d\d)\b", re.I)
+FRESHNESS_WORDS = re.compile(r"(?:\\b(today|tonight|latest|current(?:ly)?|now|news|price|score|weather|live|recent|this\\s+(?:week|month|year)|ippo|ippol|nilavile|20\\d\\d)\\b|ഇപ്പോൾ|ഇപ്പോഴത്തെ|നിലവിലെ|നിലവിൽ|പുതിയ|ഏറ്റവും പുതിയ|തത്സമയം|ഇന്നത്തെ)",re.I)
+
+def needs_fresh_web(question:str)->bool:
+    return bool(FRESHNESS_WORDS.search(question or ""))
+
+def _balanced_queries(question:str,mode:str)->list[str]:
+    year=datetime.now().year
+    current=f"{question} current latest {year}"
+    history=f"{question} history background timeline"
+    if mode=="quick": return [current,history]
+    return [current,f"{question} official current status {year}",history,f"{question} origin history milestones"]
+
 MEMORY_MAX_AGE_DAYS = 14
 
 MODES = {
@@ -159,9 +170,10 @@ async def run(question: str, mode: str, emit, online: bool = True) -> dict:
         return {"blocks": [], "sources": [], "from_memory": False, "save": None}
 
     fresh = needs_fresh_web(question)
-    current_year = datetime.now().year
-    base_query = f"{question} {current_year}" if fresh and str(current_year) not in question else question
-    queries = await _plan_queries(base_query, cfg["queries"]) if mode == "deep" else [base_query]
+    queries = _balanced_queries(question, mode)
+    if mode == "deep":
+        planned = await _plan_queries(question, 3)
+        queries = list(dict.fromkeys(queries + planned))[:6]
     await emit("searching", f"Searching the web ({len(queries)} quer{'y' if len(queries)==1 else 'ies'})…")
 
     results, seen, search_errors = [], set(), []
