@@ -549,7 +549,9 @@ async def chat(body: ChatRequest):
                 answer = recovery.strip()
                 yield _sse("delta", {"text": answer})
             else:
-                answer, thinking = thinking, ""   # last resort: still show something rather than nothing
+                # Never turn private scratchpad/reasoning into the user-visible answer.
+                # Leave answer empty so the same-model visible-answer recovery below runs.
+                answer = ""
         answer = answer.strip()
         if not answer:
             # Keep the selected model. Never silently replace Main with Fast.
@@ -582,10 +584,10 @@ async def chat(body: ChatRequest):
         with db.get_conn() as conn:
             conn.execute(
                 "INSERT INTO messages (id, conversation_id, parent_id, role, content, thinking, sources_json, model, reasoning_level, created_at, confidence_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (aid, body.conversation_id, parent_for_answer, "assistant", answer, thinking.strip() or None,
+                (aid, body.conversation_id, parent_for_answer, "assistant", answer, None,
                  db.dumps(sources) if sources else None, model, level, db.now(), db.dumps(conf) if conf else None))
             conn.execute("UPDATE conversations SET updated_at=? WHERE id=?", (db.now(), body.conversation_id))
-        yield _sse("done", {"id": aid, "content": answer, "thinking": thinking.strip() or None, "sources": sources, "confidence": conf})
+        yield _sse("done", {"id": aid, "content": answer, "thinking": None, "sources": sources, "confidence": conf})
 
         # ---- after the answer: remember research, title the chat ----
         if research_result and research_result.get("save") and answer and len(answer) > 40 and memory.remember_research_enabled():
