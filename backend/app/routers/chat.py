@@ -406,16 +406,17 @@ async def chat(body: ChatRequest):
         # Handle only unmistakable social turns here; all substantive questions still go to
         # the user's selected model.
         social = re.sub(r"[.!?\s]+", "", user_text.lower())
+        greeting_name = user_name.strip()
         social_replies = {
-            "hi": "Hi! How can I help?",
-            "hello": "Hello! How can I help?",
-            "hey": "Hey! How can I help?",
-            "thanks": "You're welcome!",
-            "thankyou": "You're welcome!",
+            "hi": f"Hi {greeting_name}! How can I help?" if greeting_name else "Hi! How can I help?",
+            "hello": f"Hello {greeting_name}! How can I help?" if greeting_name else "Hello! How can I help?",
+            "hey": f"Hey {greeting_name}! How can I help?" if greeting_name else "Hey! How can I help?",
+            "thanks": f"You're welcome, {greeting_name}!" if greeting_name else "You're welcome!",
+            "thankyou": f"You're welcome, {greeting_name}!" if greeting_name else "You're welcome!",
             "ok": "Okay.",
             "okay": "Okay.",
-            "bye": "Bye! Take care.",
-            "goodbye": "Goodbye! Take care.",
+            "bye": f"Bye {greeting_name}! Take care." if greeting_name else "Bye! Take care.",
+            "goodbye": f"Goodbye {greeting_name}! Take care." if greeting_name else "Goodbye! Take care.",
         }
         if social in social_replies:
             text = social_replies[social]
