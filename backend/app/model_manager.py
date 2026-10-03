@@ -142,6 +142,24 @@ def unload(role: str):
         except Exception:
             info["proc"].kill()
 
+def restore_assignments() -> dict:
+    """Start the user's persisted Main/Fast selections after app startup."""
+    result = {}
+    for role in ("main", "agent"):
+        filename = assignment(role)
+        if not filename:
+            result[role] = {"status": "unassigned"}
+            continue
+        if not resolve(filename):
+            result[role] = {"status": "missing", "filename": filename}
+            continue
+        try:
+            load(role, filename)
+            result[role] = {"status": "started", "filename": filename}
+        except Exception as exc:
+            result[role] = {"status": "failed", "filename": filename, "error": str(exc)}
+    return result
+
 def shutdown_all():
     for role in list(PROCS):
         unload(role)

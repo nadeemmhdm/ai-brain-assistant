@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     init_db()
     await asyncio.to_thread(brain.reembed_if_needed)
     await asyncio.to_thread(skills.seed)
+    await asyncio.to_thread(model_manager.restore_assignments)
     task = asyncio.create_task(teach.scheduler_loop(_is_online, _models_ready))
     await asyncio.to_thread(_maybe_auto_update)
     yield
