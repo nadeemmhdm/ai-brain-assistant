@@ -13,7 +13,7 @@ import { BrainView } from "@/components/views/BrainView";
 import { TrainingView } from "@/components/views/TrainingView";
 import { ModelsView } from "@/components/views/ModelsView";
 import { GoogleView } from "@/components/views/GoogleView";
-import { McpView } from "@/components/views/McpView";
+import { McpView } from "@/components/views/McpView";\nimport { TeacherView } from "@/components/views/TeacherView";
 import { Toaster } from "@/components/ui/Toaster";
 import { toast } from "@/store/useToast";
 import { motion, AnimatePresence } from "motion/react";
@@ -335,7 +335,7 @@ export default function App() {
       {view === "training" && <TrainingView />}
       {view === "models" && <ModelsView />}
       {view === "google" && <GoogleView />}
-      {view === "mcp" && <McpView />}
+      {view === "mcp" && <McpView />}\n      {view === "teacher" && <TeacherView />}
       {view === "chat" && (
         <AnimatePresence initial={false}>
           {sidebarOpen && (
